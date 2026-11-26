@@ -23,7 +23,7 @@ truncates the path in its own text, `C:/Users/.../AppDa...p/gs-spike-X/project`,
 - Because `input` is present, the refused path can be read from `state.input` (`path` / `filePath`)
   as well as parsed out of the message text (`writes to "..."`).
 
-## Render check: NOT DONE
+## Render check: NOT DONE (replaced by `scripts/try.mjs`; `spike/` was deleted)
 `opencode run` has no TUI, and there is no pty tool on this machine (no winpty, no node-pty; none
 installed). `spike/tui.tsx` is written but unrun. To check live: list it in a throwaway
 `cli.json` (`plugins`), open the TUI under a real terminal, confirm the line `spike tick N` in the
