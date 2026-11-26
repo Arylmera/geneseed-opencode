@@ -18,6 +18,7 @@ const SWITCHABLE = [
 const isOff = (text, marker) => new RegExp(`^${marker}:[ \\t]*off[ \\t]*\\r?$`, "m").test(text)
 
 /**
+ * Done gate is always n/a (OpenCode 2 turns are not judged); Test note is advisory and not listed.
  * @param {string|null} text carrier text, null when no carrier
  * @param {Record<string,string|undefined>} env
  * @returns {null | { on: string[], off: string[], na: string[], strict: boolean, guard: "on"|"off"|"warn" }}

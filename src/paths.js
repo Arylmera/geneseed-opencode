@@ -1,8 +1,8 @@
 import path from "node:path"
 
-/** Pick path flavour from the path itself: drive letter or backslash means win32. */
+/** Pick path flavour from the path itself: a drive letter or a UNC prefix means win32. */
 function flavor(p) {
-  return /^[A-Za-z]:|[\\]/.test(String(p)) ? path.win32 : path.posix
+  return /^(?:[A-Za-z]:|\\\\)/.test(String(p)) ? path.win32 : path.posix
 }
 
 /**
@@ -63,7 +63,8 @@ export function findInstall(dir, cfg, exists) {
 }
 
 /**
- * Carrier candidates, in the order of geneseed-guard.js CARRIER_DIRS.
+ * Carrier candidates, in the order of CARRIER_DIRS in geneseed-guard.js: GENESEED_HARNESS, then the
+ * plugin dir's parent (cfg for a global install, root/.opencode for a project one), then its grandparent (root).
  * @param {Record<string,string|undefined>} env
  * @param {{ kind: "project"|"global", root: string }} install
  * @param {string} cfg
@@ -72,7 +73,10 @@ export function findInstall(dir, cfg, exists) {
 export function carrierPaths(env, install, cfg) {
   const out = []
   if (env.GENESEED_HARNESS) out.push(flavor(env.GENESEED_HARNESS).join(env.GENESEED_HARNESS, "AGENT.md"))
-  const base = install.kind === "global" ? cfg : install.root
-  out.push(flavor(base).join(base, "AGENT.md"))
+  if (install.kind === "global") out.push(flavor(cfg).join(cfg, "AGENT.md"))
+  else {
+    const p = flavor(install.root)
+    out.push(p.join(install.root, ".opencode", "AGENT.md"), p.join(install.root, "AGENT.md"))
+  }
   return out
 }

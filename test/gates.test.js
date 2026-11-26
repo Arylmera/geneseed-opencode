@@ -16,9 +16,6 @@ test("CRLF off lines", () => {
   assert.deepEqual(g.off, ["deletion", "ownership"])
   assert.deepEqual(g.on, ["secrets", "external"])
 })
-test("marker must start the line", () => {
-  assert.deepEqual(readGates("text Deletion gate: off here", {}).off, [])
-})
 test("Own-branch pass off is strict", () => {
   const g = readGates("Own-branch pass: off", {})
   assert.equal(g.strict, true)
@@ -46,7 +43,8 @@ test("contract: GATE_SWITCHES markers match the reader", (t) => {
   assert.ok(markers.length >= 7, `only ${markers.length} markers`)
   assert.deepEqual([...markers].sort(), [...KNOWN_MARKERS, "Test note"].sort())
 })
-test("marker must start the line, even when the line ends in off", () => {
+test("marker must start the line", () => {
+  assert.deepEqual(readGates("text Deletion gate: off here", {}).off, [])
   assert.deepEqual(readGates("text Deletion gate: off", {}).off, [])
   assert.deepEqual(readGates("Deletion gate: off here", {}).off, [])
 })

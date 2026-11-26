@@ -44,5 +44,11 @@ test("findInstall: windows paths walk to the drive root", () => {
 test("carrierPaths: GENESEED_HARNESS first, then global cfg or project root", () => {
   assert.deepEqual(carrierPaths({ GENESEED_HARNESS: "/h" }, { kind: "global", root: "/cfg" }, "/cfg"), ["/h/AGENT.md", "/cfg/AGENT.md"])
   assert.deepEqual(carrierPaths({}, { kind: "global", root: "/cfg" }, "/cfg"), ["/cfg/AGENT.md"])
-  assert.deepEqual(carrierPaths({}, { kind: "project", root: "/r" }, "/cfg"), ["/r/AGENT.md"])
+  assert.deepEqual(carrierPaths({}, { kind: "project", root: "/r" }, "/cfg"), ["/r/.opencode/AGENT.md", "/r/AGENT.md"])
+  assert.deepEqual(carrierPaths({ GENESEED_HARNESS: "/h" }, { kind: "project", root: "/r" }, "/cfg"), ["/h/AGENT.md", "/r/.opencode/AGENT.md", "/r/AGENT.md"])
+})
+
+test("findInstall: a backslash inside a POSIX path does not make it win32", () => {
+  const exists = (p) => p === "/r/a\\b/" + MAN
+  assert.deepEqual(findInstall("/r/a\\b/c", "/cfg", exists), { kind: "project", root: "/r/a\\b" })
 })
