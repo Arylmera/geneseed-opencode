@@ -1,11 +1,12 @@
 // The panel as rows: snapshot of polled files + session messages in, Row[] out, each row exactly
-// `width` columns. Pure: no OpenCode and no fs import; tui.tsx does the reading and draws the rows
-// as they are.
+// `width` display columns (src/width.js: CJK and emoji count 2). Pure: no OpenCode and no fs
+// import; tui.tsx does the reading and draws the rows as they are.
 import { flavor } from "./paths.js"
 import { readGates } from "./read/gates.js"
 import { readRefusals } from "./read/refusals.js"
 import { learned, readMemoryUse, storeNamed } from "./read/memory.js"
 import { readState, rowsFor, runLine } from "./read/runs.js"
+import { clusterCols, cols, graphemes } from "./width.js"
 
 /** The inner width when the TUI cannot measure the drawn box. */
 export const WIDTH = 32
@@ -64,20 +65,41 @@ export function glyphsFor(options, env) {
   return options?.ascii === true || env?.GENESEED_SIDEBAR_ASCII === "1" ? GLYPHS.ascii : GLYPHS.unicode
 }
 
-const len = (s) => Array.from(s).length
+const len = cols
 
-/** At most `width` characters, the last an ellipsis; never splits a character. */
+/**
+ * At most `width` columns, the last an ellipsis: the head of s, grapheme clusters kept whole; a
+ * wide one that would cross the edge is left out and the gap padded, so a cut is exactly `width`.
+ */
 export function cut(s, width = WIDTH) {
-  const c = Array.from(String(s))
-  if (c.length <= width) return String(s)
-  return width <= 0 ? "" : c.slice(0, width - 1).join("") + "…"
+  const str = String(s)
+  if (cols(str) <= width) return str
+  if (width <= 0) return ""
+  let out = ""
+  let n = 0
+  for (const g of graphemes(str)) {
+    const w = clusterCols(g)
+    if (n + w > width - 1) break
+    out += g
+    n += w
+  }
+  return out + "…" + " ".repeat(width - 1 - n)
 }
 
-/** At most `width` characters, the first an ellipsis, the right end kept; never splits a character. */
+/** As cut, the ellipsis first and the right end kept (the padding stays at the right). */
 export function cutLeft(s, width) {
-  const c = Array.from(String(s))
-  if (c.length <= width) return String(s)
-  return width <= 0 ? "" : "…" + c.slice(c.length - (width - 1)).join("")
+  const str = String(s)
+  if (cols(str) <= width) return str
+  if (width <= 0) return ""
+  let out = ""
+  let n = 0
+  for (const g of graphemes(str).reverse()) {
+    const w = clusterCols(g)
+    if (n + w > width - 1) break
+    out = g + out
+    n += w
+  }
+  return "…" + out + " ".repeat(width - 1 - n)
 }
 
 /**
