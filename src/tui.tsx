@@ -8,7 +8,7 @@ import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from
 import { Plugin } from "@opencode/plugin/tui"
 import { carrierPaths, cfgDir, findInstall, flavor, machineDir } from "./paths.js"
 import { listFacts, storeCandidates } from "./read/memory.js"
-import { panelLines, readsTierOf, watchList } from "./panel.js"
+import { carrierText, panelLines, readsTierOf, watchList } from "./panel.js"
 import { createPoll } from "./poll.js"
 
 const EVERY = 3000
@@ -83,6 +83,8 @@ export default Plugin.define({
   setup(context) {
     // When the panel first rendered each session: "learned" counts facts changed since then.
     const since = new Map<string, number>()
+    // The carrier text each session first rendered: the guard reads its carrier once, so do we.
+    const carriers = new Map<string, string>()
     // Theme roles of @opencode/theme 2.3.2 ResolvedTheme. Read on every draw, so a mode switch
     // applies; optional chaining because the Rust client runs plugins through a compatibility layer.
     const color = (role: Line["role"]) => {
@@ -160,7 +162,10 @@ export default Plugin.define({
             const x = snap()
             if (!w || !x) return null
             try {
-              return panelLines(w, x, messages(), { env: process.env, sinceMs: since.get(input.sessionID) ?? Date.now() })
+              const id = input.sessionID
+              const now = carrierText(w, x)
+              if (!carriers.has(id) && now !== null) carriers.set(id, now)
+              return panelLines(w, x, messages(), { env: process.env, sinceMs: since.get(id) ?? Date.now(), carrier: carriers.get(id) })
             } catch {
               return null
             }

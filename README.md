@@ -29,6 +29,8 @@ Geneseed
 - **Gates**: the switchable gates in place, read from the Geneseed carrier (`AGENT.md`), in the
   order Geneseed's guard looks for it. `GENESEED_GUARD` set to `off`, `0`, `false` or `no` shows
   "guard off", and `warn` shows "warn only", parsed as the guard does (any case, no trimming).
+  The carrier is read once a session, as the guard reads it: when it changes later, the gates stay
+  as they were and "restart OpenCode to apply" is added.
 - **Refused**: tool calls the guard refused in this session, with the rule and the path or command.
 - **Memory**: `memory_search` calls and fact files read in this session, and facts created or
   changed in the store since the panel first showed the session.

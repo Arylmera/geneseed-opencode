@@ -126,16 +126,31 @@ const hhmm = (ms) => {
 }
 
 /**
+ * The text of the first readable carrier in the snapshot, or null.
+ * @param {Watch} w
+ * @param {Record<string, unknown>} snap
+ * @returns {string|null}
+ */
+export function carrierText(w, snap) {
+  const v = w.carriers.map((c) => snap[c]).find((t) => typeof t === "string")
+  return v ?? null
+}
+
+/**
  * The panel, in spec order; empty sections absent; null when there is no carrier.
+ * `carrier` is the carrier text the session first rendered: the guard reads its carrier once, so the
+ * gates stay that text's, and a carrier changed or gone since adds "restart OpenCode to apply".
+ * Left out, the current carrier is used.
  * @param {Watch} w
  * @param {Record<string, unknown>} snap
  * @param {unknown} messages
- * @param {{ env: Record<string, string|undefined>, sinceMs: number, time?: (ms: number) => string }} o
+ * @param {{ env: Record<string, string|undefined>, sinceMs: number, time?: (ms: number) => string, carrier?: string|null }} o
  * @returns {Line[]|null}
  */
-export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm }) {
-  const carrier = w.carriers.map((c) => snap[c]).find((v) => typeof v === "string")
-  const gates = readGates(carrier ?? null, env)
+export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carrier }) {
+  const now = carrierText(w, snap)
+  const pinned = typeof carrier === "string" ? carrier : null
+  const gates = readGates(pinned ?? now, env)
   if (!gates) return null
   /** @type {Line[]} */
   const out = [
@@ -151,6 +166,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm }) {
     list("  n/a  ", gates.na.map((n) => `${n} (OpenCode 2)`))
     if (gates.strict) out.push({ text: "  strict consent", role: "muted" })
   }
+  if (pinned !== null && now !== pinned) out.push({ text: "  restart OpenCode to apply", role: "muted" })
 
   const refused = readRefusals(messages)
   if (refused.length) {

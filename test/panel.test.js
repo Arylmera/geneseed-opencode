@@ -217,3 +217,20 @@ test("watchList polls the stores only up to the first that exists, plus the name
   const named = [msg(done("memory_search", { query: "q" }, "Facts in /seen (read x):\n", 1))]
   assert.deepEqual(stores({ "/a/memory": [] }, named), ["/a/memory", "/seen"])
 })
+
+test("the carrier is read once a session: a later change keeps the old gates and says restart", async () => {
+  const { carrierText } = await import("../src/panel.js")
+  const first = "Deletion gate: off\n"
+  assert.equal(carrierText(W, { "/h/AGENT.md": null, "/cfg/AGENT.md": first }), first)
+  assert.equal(carrierText(W, {}), null)
+  const OLD = [...HEAD, "muted|  on   secrets, ownership,", "muted|       external", "muted|  off  deletion", "muted|  n/a  done (OpenCode 2)"]
+  // Unchanged: no extra line.
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first }, [], { carrier: first }), OLD)
+  // Changed on disk: the gates the session started with, then the hint.
+  const RESTART = "muted|  restart OpenCode to apply"
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { carrier: first }), [...OLD, RESTART])
+  // Gone on disk: the same; the guard still holds what it read.
+  assert.deepEqual(shown(W, {}, [], { carrier: first }), [...OLD, RESTART])
+  // No pinned carrier (the first render): the current one, no hint.
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first }, []), OLD)
+})
