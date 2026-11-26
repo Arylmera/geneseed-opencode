@@ -258,3 +258,24 @@ test("a gate flipped in the carrier shows the hint", () => {
   assert.equal(hint("Deletion gate: off\nOwn-branch pass: off\n"), true)
   assert.equal(hint("Deletion gate: off\n"), false)
 })
+
+test("refused path detail: relative to the session dir, else the last two segments; a command stays", () => {
+  const row = (w, input) => {
+    const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, input))])
+    return all.slice(all.indexOf("warning| Refused  1") + 1)
+  }
+  const win = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
+  const posix = { ...W, roots: ["/home/g/proj"], platform: "linux" }
+  const cases = [
+    ["win32 under the session dir", win, { path: String.raw`C:\Users\g\proj\.ssh\id_rsa` }, [String.raw`muted|  Sealed Secrets  .ssh\id_rsa`]],
+    ["win32 different case", win, { path: String.raw`c:\users\G\PROJ\.ssh\id_rsa` }, [String.raw`muted|  Sealed Secrets  .ssh\id_rsa`]],
+    ["posix under the session dir", posix, { filePath: "/home/g/proj/.ssh/id_rsa" }, ["muted|  Sealed Secrets  .ssh/id_rsa"]],
+    ["posix is case-sensitive", posix, { path: "/home/g/PROJ/.ssh/id_rsa" }, ["muted|  Sealed Secrets", "muted|    …/.ssh/id_rsa"]],
+    ["win32 outside the session dir", win, { path: String.raw`C:\Users\g\AppData\Local\x\.ssh\id_rsa` }, ["muted|  Sealed Secrets", String.raw`muted|    …\.ssh\id_rsa`]],
+    ["posix outside the session dir", posix, { path: "/etc/ssh/keys/id_rsa" }, ["muted|  Sealed Secrets", "muted|    …/keys/id_rsa"]],
+    ["a sibling sharing the prefix is outside", posix, { path: "/home/g/proj2/a/id_rsa" }, ["muted|  Sealed Secrets  …/a/id_rsa"]],
+    ["a command is left as it is", win, { command: "git push --force origin some-long-branch" }, ["muted|  Sealed Secrets", "muted|    git push --force origin s…"]],
+    ["a command that looks like a path is left as it is", posix, { command: "/home/g/proj/.ssh/id_rsa" }, ["muted|  Sealed Secrets", "muted|    /home/g/proj/.ssh/id_rsa"]],
+  ]
+  for (const [name, w, input, want] of cases) assert.deepEqual(row(w, input), want, name)
+})

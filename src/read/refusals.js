@@ -16,15 +16,17 @@ function ruleOf(message) {
 }
 
 function detailOf(input) {
-  if (!isObj(input)) return ""
-  for (const k of DETAIL_KEYS) if (typeof input[k] === "string" && input[k] !== "") return input[k]
-  return ""
+  if (!isObj(input)) return { detail: "", isPath: false }
+  for (const k of DETAIL_KEYS) {
+    if (typeof input[k] === "string" && input[k] !== "") return { detail: input[k], isPath: k !== "command" }
+  }
+  return { detail: "", isPath: false }
 }
 
 /**
  * Tool calls Geneseed's guard refused, newest first.
  * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
- * @returns {{ id: string, rule: string, detail: string }[]}
+ * @returns {{ id: string, rule: string, detail: string, isPath: boolean }[]}
  */
 export function readRefusals(messages) {
   const rows = []
@@ -37,7 +39,7 @@ export function readRefusals(messages) {
       if (state.status !== "error" || !isObj(state.error)) continue
       const text = String(state.error.message ?? "").trimStart()
       if (!text.startsWith(MARKER)) continue
-      rows.push({ id: String(part.id ?? ""), rule: ruleOf(text), detail: detailOf(state.input) })
+      rows.push({ id: String(part.id ?? ""), rule: ruleOf(text), ...detailOf(state.input) })
     }
   }
   return rows.reverse()

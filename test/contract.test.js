@@ -41,7 +41,7 @@ test("contract: the guard's refusal marker and sentence are what readRefusals pa
   const sentence = template(gate, REFUSED_BECAUSE, { "a.why": "a key is never written", tag: tag[1].replace("${a.rule}", "Sealed Secrets") })
   const message = `${MARKER} [geneseed-guard] blocked: Tell the user this, word for word: x\n${sentence}\nYou can do it."`
   const part = { type: "tool", id: "c1", state: { status: "error", input: { path: "/p/.ssh/id_rsa" }, error: { message } } }
-  assert.deepEqual(readRefusals([{ content: [part] }]), [{ id: "c1", rule: "Sealed Secrets", detail: "/p/.ssh/id_rsa" }])
+  assert.deepEqual(readRefusals([{ content: [part] }]), [{ id: "c1", rule: "Sealed Secrets", detail: "/p/.ssh/id_rsa", isPath: true }])
 })
 
 test("contract: memory_search's two heads are what the memory reader parses", (t) => {

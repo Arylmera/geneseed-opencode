@@ -23,6 +23,24 @@ export function cut(s, width = WIDTH) {
 }
 
 /**
+ * A refused path for a 30-column row: relative to the session dir when it lies under it, else its
+ * last two segments after an ellipsis. Keeps the path's own separator; case rules are paths.js's
+ * (a drive-letter path is win32, so compared case-insensitively).
+ * @param {string} detail
+ * @param {string|undefined} dir
+ */
+export function shortPath(detail, dir) {
+  const sep = detail.includes("\\") ? "\\" : "/"
+  const p = flavor(detail)
+  if (dir && flavor(dir) === p) {
+    const rel = p.relative(dir, detail)
+    if (rel && rel !== ".." && !rel.startsWith(`..${p.sep}`) && !p.isAbsolute(rel)) return rel.split(/[\\/]+/).join(sep)
+  }
+  const parts = detail.split(/[\\/]+/).filter(Boolean)
+  return parts.length > 2 ? `…${sep}${parts.slice(-2).join(sep)}` : detail
+}
+
+/**
  * A row that lists names is never cut: wrap at ", " to `width`, continuation lines aligned under
  * the first name. A name longer than the width stays whole on its own line.
  * @param {string} head
@@ -185,7 +203,8 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
   if (refused.length) {
     out.push({ text: ` Refused  ${refused.length}`, role: "warning" })
     // One line when it fits; else the rule, then the detail below it, so neither hides the other.
-    const entry = (r) => {
+    const entry = (r0) => {
+      const r = r0.isPath ? { ...r0, detail: shortPath(r0.detail, w.roots[0]) } : r0
       const one = `  ${r.rule}${r.detail ? `  ${r.detail}` : ""}`
       return len(one) <= WIDTH || !r.detail ? [one] : [`  ${r.rule}`, `    ${r.detail}`]
     }
