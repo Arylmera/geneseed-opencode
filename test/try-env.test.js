@@ -63,3 +63,21 @@ test("the untouched check watches the real OpenCode config dir and Geneseed mach
   assert.deepEqual(realDirs({ OPENCODE_CONFIG_DIR: "/oc", XDG_CONFIG_HOME: "/x" }, home), ["/oc", "/x/geneseed"])
   for (const d of realDirs({}, home)) assert.doesNotMatch(d, /\.claude/)
 })
+
+test("every child try.mjs starts gets the allowlisted env", async () => {
+  const fs = await import("node:fs")
+  const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
+  const calls = []
+  for (const m of src.matchAll(/\b(spawn|spawnSync|exec|execSync|execFile|execFileSync|fork)\(/g)) {
+    let depth = 0
+    let i = m.index + m[0].length - 1
+    for (; i < src.length; i++) {
+      if (src[i] === "(") depth++
+      else if (src[i] === ")" && --depth === 0) break
+    }
+    calls.push(src.slice(m.index, i + 1))
+  }
+  // run (spawnSync), the scripted model (spawn) and where.exe (spawnSync).
+  assert.ok(calls.length >= 3, `only ${calls.length} child calls found`)
+  for (const c of calls) assert.match(c, /\benv:\s*env\(/, c.split("\n")[0])
+})

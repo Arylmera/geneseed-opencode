@@ -111,7 +111,7 @@ const requestsFile = path.join(WORK, "fake-model.requests.jsonl")
 const model = spawn(process.execPath, [
   path.join(REPO, "scripts", "fake-model.mjs"),
   "--port-file", portFile, "--requests", requestsFile, "--turns", JSON.stringify(tryTurns(PROJECT)), "--ttl", "1800",
-], { detached: true, stdio: "ignore", windowsHide: true })
+], { env: env(), detached: true, stdio: "ignore", windowsHide: true })
 model.unref()
 for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(100)
 const port = fs.existsSync(portFile) ? fs.readFileSync(portFile, "utf8").trim() : ""
@@ -218,7 +218,7 @@ check("your real OpenCode config dir and Geneseed machine dir are untouched (top
 // 6. The command for the owner. A .ps1 in the home sets the environment, so the command itself is plain.
 const exe = opt("--opencode", findOpencode())
 function findOpencode() {
-  const shim = spawnSync("where.exe", ["opencode"], { encoding: "utf8", windowsHide: true }).stdout?.split(/\r?\n/).find(Boolean)
+  const shim = spawnSync("where.exe", ["opencode"], { env: env(), encoding: "utf8", windowsHide: true }).stdout?.split(/\r?\n/).find(Boolean)
   const arch = process.arch === "arm64" ? "arm64" : "x64"
   const roots = [shim && path.dirname(shim), path.join(process.env.APPDATA ?? "", "npm")].filter(Boolean)
   for (const r of roots) {
