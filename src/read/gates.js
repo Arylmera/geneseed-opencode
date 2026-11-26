@@ -20,10 +20,10 @@ const GUARD_OFF = ["off", "0", "false", "no"]
 const isOff = (text, marker) => new RegExp(`^${marker}:[ \\t]*off[ \\t]*\\r?$`, "m").test(text)
 
 /**
- * Done gate is always n/a (OpenCode 2 turns are not judged); Test note is advisory and not listed.
+ * Done gate is not listed (OpenCode 2 turns are not judged); Test note is advisory and not listed.
  * @param {string|null} text carrier text, null when no carrier
  * @param {Record<string,string|undefined>} env
- * @returns {null | { on: string[], off: string[], na: string[], strict: boolean, guard: "on"|"off"|"warn" }}
+ * @returns {null | { on: string[], off: string[], strict: boolean, guard: "on"|"off"|"warn" }}
  */
 export function readGates(text, env) {
   if (text == null) return null
@@ -35,7 +35,6 @@ export function readGates(text, env) {
   return {
     on,
     off,
-    na: ["done"],
     strict: isOff(text, "Own-branch pass"),
     guard: GUARD_OFF.includes(mode) ? "off" : mode === "warn" ? "warn" : "on",
   }

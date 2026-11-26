@@ -36,7 +36,6 @@ export const GLYPH_TABLE = [
   ["on", "●", "*"],
   ["off", "○", "o"],
   ["ok", "✓", "+"],
-  ["na", "–", "-"],
   ["alert", "▲", "!"],
   ["stop", "■", "#"],
   ["warn", "◐", "~"],
@@ -204,10 +203,10 @@ export function carrierText(w, snap) {
   return v ?? null
 }
 
-/** Same gate results (on, off, n/a, strict, guard)? null (no carrier) equals only null. */
+/** Same gate results (on, off, strict, guard)? null (no carrier) equals only null. */
 export function sameGates(a, b) {
   if (a === null || b === null) return a === b
-  const key = (g) => JSON.stringify([g.on, g.off, g.na, g.strict, g.guard])
+  const key = (g) => JSON.stringify([g.on, g.off, g.strict, g.guard])
   return key(a) === key(b)
 }
 
@@ -366,7 +365,6 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
         row.forEach(([glyph, name], j) => line.push(glyph, j < row.length - 1 ? { ...name, text: name.text + " ".repeat(cw - len(glyph.text) - len(name.text)) } : name))
         item(line)
       }
-      item([indent(), seg(g.na, "muted"), seg(` ${gates.na.join(", ")} n/a on OpenCode 2`, "muted", { flex: "right" })])
       if (gates.strict) item([indent(), seg(g.ok, "success"), seg(" strict consent", "muted")])
     }
   }

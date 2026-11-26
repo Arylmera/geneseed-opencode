@@ -3,11 +3,11 @@ import assert from "node:assert/strict"
 import fs from "node:fs"
 import { readGates, KNOWN_MARKERS } from "../src/read/gates.js"
 
-test("no switches: four on, done n/a", () => {
+test("no switches: four on, done not listed", () => {
   const g = readGates("", {})
   assert.deepEqual(g.on, ["secrets", "deletion", "ownership", "external"])
   assert.deepEqual(g.off, [])
-  assert.deepEqual(g.na, ["done"])
+  assert.equal("na" in g, false)
   assert.equal(g.strict, false)
   assert.equal(g.guard, "on")
 })
@@ -21,9 +21,9 @@ test("Own-branch pass off is strict", () => {
   assert.equal(g.strict, true)
   assert.deepEqual(g.off, [])
 })
-test("Done gate off stays n/a", () => {
+test("Done gate off is not listed", () => {
   const g = readGates("Done gate: off", {})
-  assert.deepEqual(g.na, ["done"])
+  assert.deepEqual(g.on, ["secrets", "deletion", "ownership", "external"])
   assert.deepEqual(g.off, [])
 })
 test("null carrier is null", () => assert.equal(readGates(null, {}), null))

@@ -27,7 +27,6 @@ OpenCode plugins are single files with no dependencies. Geneseed never depends o
     ── ● gates ────────────── 2 of 4
       ✓ secrets     ✓ external
       ○ deletion    ○ ownership
-      – done n/a on OpenCode 2
     ── ▲ refused ───────────────── 1
       Sealed Secrets
       .ssh/id_rsa
@@ -57,7 +56,7 @@ texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn bo
   gates (`<on> of <switchable>`), refused (`<n>`), one per loop run (`<step> · #<i>`), one per
   factory run (`<stage>`), memory (`<used> · <learned> new`, `· 0 new` dropped).
 - Gates: a grid of `✓ name` then `○ name`, as many columns as fit (2, or up to 4 when wide); a name
-  is never cut. Then `– done n/a on OpenCode 2`, `✓ strict consent` when set, and
+  is never cut. Then `✓ strict consent` when set, and
   `↺ restart OpenCode to apply` when the gates changed since the pin.
 - Guard off: an inverse error bar `GUARD OFF · nothing blocks` under the header, and the gates
   section is one line `GENESEED_GUARD=off`. Warn: `◐ warn only · logs, no block` under the rule.
@@ -89,7 +88,7 @@ G1 Gates in place — always shown. Source: the carrier, first readable of
    No count: names only, because always-on gates (disk destruction, root scan, rule store, wiki)
    have no switch. Switchable gates, exactly four plus one:
    Secrets, Deletion, Ownership, External: on unless the line `<Name> gate: off` is there.
-   Done: n/a, OpenCode 2 turns are not judged. `Own-branch pass: off` adds "strict consent".
+   Done: not shown, OpenCode 2 turns are not judged. `Own-branch pass: off` adds "strict consent".
    Test note is advisory and is not listed. Excluding a doctrine drops its text, not this gate.
    `GENESEED_GUARD` off replaces the list ("GUARD OFF"), warn adds "warn only", read from the TUI
    process (a remote server may differ). No carrier: the whole panel is hidden.

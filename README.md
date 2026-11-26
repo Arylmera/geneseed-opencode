@@ -67,7 +67,6 @@ GENESEED                     ▲ 2
 ── ● gates ────────────── 2 of 4
   ✓ secrets     ✓ external
   ○ deletion    ○ ownership
-  – done n/a on OpenCode 2
 ── ▲ refused ───────────────── 1
   Sealed Secrets
   .ssh/id_rsa
@@ -87,7 +86,7 @@ show is left out. Each section opens with a rule line that carries its summary a
 
 | Section | What it lists | Summary |
 | --- | --- | --- |
-| **gates** | The four switchable gates: `✓` on, `○` off. Then `– done n/a on OpenCode 2`, and `✓ strict consent` when the carrier has `Own-branch pass: off` | on of switchable |
+| **gates** | The four switchable gates: `✓` on, `○` off. Then `✓ strict consent` when the carrier has `Own-branch pass: off` | on of switchable |
 | **refused** | Tool calls the guard refused in this session: the rule, then the path or command | the refusal count |
 | **loop** | One rule per loop run on this repository that is not done: its title, then `● waits for you` or the stop reason | the step and iteration |
 | **factory** | The same for factory runs | the stage |
@@ -98,7 +97,7 @@ Lists show the newest 3, then `+N`.
 ### Gates
 
 A gate is on unless the carrier holds the line `<Name> gate: off` (Secrets, Deletion, Ownership,
-External). The Done gate is always n/a: OpenCode 2 turns are not judged.
+External). The Done gate is not shown: OpenCode 2 turns are not judged.
 
 The carrier is read once, when OpenCode starts the plugin, because Geneseed's guard also reads it
 once at load. An absent carrier at that time counts as every gate armed. When the gates in the
@@ -289,7 +288,7 @@ node scripts/try.mjs --clean <dir>
 ## ⚠️ Limits
 
 - **OpenCode 2 only, from 2.3.2.** OpenCode 1 and the desktop app are not supported.
-- **The done gate is always n/a.** OpenCode 2 turns are not judged.
+- **The done gate is not shown.** OpenCode 2 turns are not judged.
 - **Counts are what is in view.** Refusals and memory come from the messages the TUI has loaded,
   and older messages may be missing.
 - **The TUI's own environment and disk.** The guard mode and the file paths are read where the TUI
