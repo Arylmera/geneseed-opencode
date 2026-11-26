@@ -1,12 +1,11 @@
 import path from "node:path"
+import { flavor } from "../paths.js"
 
 const DASH = " \u2014 "
 const INDEXES = new Set(["memory.md", "readme.md"])
 const FOLDERS = new Set(["topics", "archive", "agents"])
 
 const isObj = (v) => v !== null && typeof v === "object"
-const isWin = (p) => /^(?:[A-Za-z]:|\\)/.test(String(p))
-const flavor = (p) => (isWin(p) ? path.win32 : path.posix)
 
 /**
  * Memory folders in the order of resolveMemoryDir (geneseed-learn.js). The caller tests which exists.
@@ -33,7 +32,7 @@ export function storeCandidates(env, install, cfg, machine, cwd, readsTier) {
 // "/"-separated, no trailing slash, lower-cased for a Windows path.
 function norm(p) {
   const s = String(p).replace(/\\/g, "/").replace(/\/+$/, "")
-  return isWin(p) ? s.toLowerCase() : s
+  return flavor(p) === path.win32 ? s.toLowerCase() : s
 }
 
 /** Store-relative path -> slug when it names a fact file, else null. */
@@ -69,7 +68,8 @@ function namedDir(text) {
 
 /**
  * Memory the session used, in message order: searches and reads of fact files.
- * A search result names its folder; the last one seen is the store for the reads.
+ * The store is resolved once over the whole message list: the last dir a search result names wins
+ * over the `store` argument, for every read.
  * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
  * @param {string|null} store
  * @returns {{ kind: "searched"|"read", label: string, count?: number, at: number|null }[]}

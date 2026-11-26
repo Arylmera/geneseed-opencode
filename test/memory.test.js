@@ -85,3 +85,15 @@ test("learned drops indexes, folders, non-md and old files; newest first", () =>
   ])
   assert.deepEqual(learned("x", 0), [])
 })
+
+test("a No fact in <dir> result names the store too", () => {
+  const none = done("memory_search", { query: "q" }, 'No fact in D:/other matches "q".')
+  const rows = readMemoryUse([msg(none, done("read", { filePath: "D:/other/a.md" }, "x"))], "/s")
+  assert.deepEqual(rows.map((r) => `${r.kind}:${r.label}`), ["searched:q", "read:a"])
+})
+test("a POSIX store is case-sensitive", () => {
+  assert.deepEqual(readMemoryUse([msg(done("read", { filePath: "/S/a.md" }, "x"))], "/s"), [])
+})
+test("the path input key reads a fact under the store", () => {
+  assert.deepEqual(readMemoryUse([msg(done("read", { path: "/s/a.md" }, "x", 3))], "/s"), [{ kind: "read", label: "a", at: 3 }])
+})

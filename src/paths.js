@@ -1,7 +1,7 @@
 import path from "node:path"
 
 /** Pick path flavour from the path itself: a drive letter or a UNC prefix means win32. */
-function flavor(p) {
+export function flavor(p) {
   return /^(?:[A-Za-z]:|\\\\)/.test(String(p)) ? path.win32 : path.posix
 }
 
