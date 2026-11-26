@@ -138,3 +138,20 @@ export function cleanHome(real, { isBusy, remove, log, error, script }) {
   log(`removed ${real}`)
   return 0
 }
+
+/**
+ * Every command try.mjs prints for the owner to run. Each runs as written from any folder (R12):
+ * absolute paths only.
+ * @param {{ script: string, home: string, pid: number|string }} a
+ */
+export function printedCommands({ script, home, pid }) {
+  const w = path.win32
+  const off = (rel, suffix) => `Rename-Item -LiteralPath "${w.join(home, ...rel)}" -NewName ${rel.at(-1)}${suffix}`
+  return [
+    `powershell -NoProfile -ExecutionPolicy Bypass -File "${w.join(home, "try.ps1")}"`,
+    `Stop-Process -Id ${pid}`,
+    cleanCommand(script, home),
+    off([".config", "geneseed", "loops.json"], ".off"),
+    off([".config", "opencode", "AGENT.md"], ".off"),
+  ]
+}

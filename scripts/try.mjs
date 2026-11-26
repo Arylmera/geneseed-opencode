@@ -16,7 +16,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, cleanHome, dbBusy, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
+import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, cleanHome, dbBusy, missingModules, overridesFor, printedCommands, realDirs, tryTurns } from "./try-env.mjs"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const SCRIPT = fileURLToPath(import.meta.url)
@@ -165,7 +165,7 @@ check("cli.json lists the plugin", plugins.length === 1 && path.resolve(plugins[
 // OpenCode loads src/tui.tsx from this checkout, so its imports resolve from here, not from OpenCode.
 const missing = missingModules(REPO)
 check(`${RUNTIME_MODULES.join(" and ")} resolve from the repo`, missing.length === 0,
-  missing.length ? `missing ${missing.join(", ")}: run npm install --ignore-scripts in ${REPO}` : "")
+  missing.length ? `missing ${missing.join(", ")}: run npm install --ignore-scripts --prefix "${REPO}"` : "")
 
 // The port file exists here: without it the script stopped above.
 const listening = await new Promise((resolve) => {
@@ -245,10 +245,13 @@ const ps1File = path.join(HOME, "try.ps1")
 fs.writeFileSync(ps1File, ps1)
 
 const allOk = results.every(Boolean)
+// Every command shown to the owner runs from any folder: absolute paths (see printedCommands).
+const [openCmd, stopCmd, cleanCmd, renameLoops, renameAgent] = printedCommands({ script: SCRIPT, home: HOME, pid: model.pid })
 console.log(`\n${allOk ? "All headless checks ok." : "Some headless checks FAILED. Do not trust the screen run until they pass."}`)
-console.log(`\nOpen OpenCode's screen in the throwaway home (PowerShell, one command):\n\n  powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1File}"\n`)
+console.log(`\nOpen OpenCode's screen in the throwaway home (PowerShell, one command):\n\n  ${openCmd}\n`)
 console.log("What you should see (the README checklist):")
 CHECKLIST.forEach((item, i) => console.log(`  ${i + 1}. ${item}`))
-console.log(`\nThe scripted model is running (pid ${model.pid}, stops itself after 30 minutes). Stop it now with:\n\n  Stop-Process -Id ${model.pid}\n`)
-console.log(`When done, remove the home:\n\n  node scripts/try.mjs --clean "${HOME}"\n`)
+console.log(`\nFor items 5 and 6, the Rename-Item commands, whole:\n\n  ${renameLoops}\n  ${renameAgent}\n`)
+console.log(`The scripted model is running (pid ${model.pid}, stops itself after 30 minutes). Stop it now with:\n\n  ${stopCmd}\n`)
+console.log(`When done, quit OpenCode, then remove the home:\n\n  ${cleanCmd}\n`)
 process.exit(allOk ? 0 : 1)

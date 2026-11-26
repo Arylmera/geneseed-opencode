@@ -145,3 +145,30 @@ test("isBusy: a missing database is not busy; one that cannot be renamed is", as
   assert.equal(dbBusy("/x/opencode.db", mk(null)), false)
   for (const c of ["EBUSY", "EPERM", "EACCES"]) assert.equal(dbBusy("/x/opencode.db", mk(c)), true, c)
 })
+
+test("every command try.mjs prints runs from any folder: absolute paths, none starting 'node scripts'", async () => {
+  const { printedCommands } = await import("../scripts/try-env.mjs")
+  const home = String.raw`C:\Temp\gs-try-abc`
+  const cmds = printedCommands({ script: String.raw`C:\repo\scripts\try.mjs`, home, pid: 4242 })
+  assert.ok(cmds.length >= 5)
+  for (const c of cmds) {
+    assert.doesNotMatch(c, /^\s*node\s+scripts/, c)
+    assert.doesNotMatch(c, /"\.{1,2}[\/]/, c)
+  }
+  assert.ok(cmds.includes(String.raw`node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc"`))
+  assert.ok(cmds.includes("Stop-Process -Id 4242"))
+  assert.ok(cmds.includes(String.raw`powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\gs-try-abc\try.ps1"`))
+  assert.ok(cmds.includes(String.raw`Rename-Item -LiteralPath "C:\Temp\gs-try-abc\.config\geneseed\loops.json" -NewName loops.json.off`))
+  assert.ok(cmds.includes(String.raw`Rename-Item -LiteralPath "C:\Temp\gs-try-abc\.config\opencode\AGENT.md" -NewName AGENT.md.off`))
+})
+
+test("try.mjs prints its commands through printedCommands, and never a bare 'node scripts' line", async () => {
+  const fs = await import("node:fs")
+  const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
+  assert.match(src, /printedCommands\(/)
+  assert.match(src, /cleanHome\(/)
+  for (const line of src.split("\n")) {
+    if (/^\s*\/\//.test(line)) continue
+    assert.doesNotMatch(line, /node scripts[\/]/, line)
+  }
+})
