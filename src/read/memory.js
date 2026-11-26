@@ -2,6 +2,10 @@ import path from "node:path"
 import { flavor } from "../paths.js"
 
 const DASH = " \u2014 "
+// The two heads of geneseed-learn.js memorySearchText: `Facts in <dir> (read ...` and
+// `No fact in <dir> matches "<query>".`
+export const FACTS_HEAD = "Facts in "
+export const NO_FACT_HEAD = "No fact in "
 const INDEXES = new Set(["memory.md", "readme.md"])
 const FOLDERS = new Set(["topics", "archive", "agents"])
 
@@ -56,7 +60,7 @@ function textOf(state) {
 
 function countOf(text) {
   const lines = text.split(/\r?\n/)
-  const head = lines.findIndex((l) => l.startsWith("Facts in "))
+  const head = lines.findIndex((l) => l.startsWith(FACTS_HEAD))
   if (head < 0) return 0
   return lines.slice(head + 1).filter((l) => l.includes(DASH)).length
 }

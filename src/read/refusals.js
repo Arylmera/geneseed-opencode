@@ -1,4 +1,6 @@
-const MARKER = 'No tool named "BLOCKED, not a missing tool:'
+export const MARKER = 'No tool named "BLOCKED, not a missing tool:'
+// The guard's gateText sentence that ends in the rule's name: `It was refused because <why>. (<rule>)`.
+export const REFUSED_BECAUSE = "It was refused because"
 // Only these input keys are ever read: a refused write's content can be the secret the guard stopped.
 const DETAIL_KEYS = ["filePath", "path", "command"]
 
@@ -6,7 +8,7 @@ const isObj = (v) => v !== null && typeof v === "object"
 
 function ruleOf(message) {
   for (const line of message.split(/\r?\n/)) {
-    if (!line.startsWith("It was refused because")) continue
+    if (!line.startsWith(REFUSED_BECAUSE)) continue
     const m = /\(([^()]*)\)\s*$/.exec(line)
     return m && m[1].trim() ? m[1].trim() : "refused"
   }
