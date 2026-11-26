@@ -280,12 +280,20 @@ test("refused path detail: relative to the session dir, else the last two segmen
   for (const [name, w, input, want] of cases) assert.deepEqual(row(w, input), want, name)
 })
 
-test("refused path detail: a last-two-segments tail wider than 30 columns is cut at 30, rule above it", () => {
+test("refused path detail: a tail too wide for its row is cut from the left, the file name stays", () => {
   const w = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
-  const input = { path: String.raw`C:\Users\g\AppData\Local\averyveryverylongfoldername\anotherverylongfilename_rsa` }
-  const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, input))])
-  assert.deepEqual(all.slice(all.indexOf("warning| Refused  1") + 1), [
+  const rows = (path) => {
+    const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, { path }))])
+    return all.slice(all.indexOf("warning| Refused  1") + 1)
+  }
+  // The detail line is the tail cut from the left: an ellipsis plus the last 25 columns, 30 with its indent.
+  assert.deepEqual(rows(String.raw`C:\Users\g\AppData\Local\xxverylongfoldername\anotherfile_rsa`), [
     "muted|  Sealed Secrets",
-    String.raw`muted|    …\averyveryverylongfolder…`,
+    String.raw`muted|    …oldername\anotherfile_rsa`,
+  ])
+  // The file name alone is wider than the row: its own tail shows.
+  assert.deepEqual(rows(String.raw`C:\Users\g\AppData\Local\d\a_file_with_a_really_long_name_id_rsa`), [
+    "muted|  Sealed Secrets",
+    "muted|    …a_really_long_name_id_rsa",
   ])
 })

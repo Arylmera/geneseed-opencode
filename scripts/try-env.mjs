@@ -98,6 +98,20 @@ export const CHECKLIST = [
   String.raw`Quit, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\opencode\AGENT.md${"`"}, start the screen again with the same command: the Geneseed panel is hidden.`,
 ]
 
+/**
+ * May --clean remove this folder? Only a `gs-try-<id>` home, or its `.del-<id>` leftover, directly
+ * under the temp dir (compared case-insensitively, as Windows does). `real` is the resolved path.
+ * @param {string} real
+ * @param {string} tmpDir
+ */
+export function isCleanTarget(real, tmpDir) {
+  const p = path.win32
+  const name = p.basename(real)
+  if (!/^gs-try-[A-Za-z0-9]+(\.del-[A-Za-z0-9]+)?$/.test(name)) return false
+  const norm = (x) => p.normalize(x).replace(/[\\/]+$/, "").toLowerCase()
+  return norm(p.dirname(real)) === norm(tmpDir)
+}
+
 /** The one command that removes `home`, whole: runs from any folder. */
 export const cleanCommand = (script, home) => `node "${script}" --clean "${home}"`
 

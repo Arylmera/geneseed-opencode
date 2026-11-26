@@ -164,14 +164,31 @@ test("cleanHome: a rename error that is not a lock is one line with the path and
   assert.deepEqual(f.err, [`clean: could not rename ${HOME_X} (ENOENT)`])
 })
 
-test("try.mjs --clean accepts a gs-try-* home and its .del-* leftover, nothing else", async () => {
+test("isCleanTarget: a gs-try home or its .del leftover directly under the temp dir, nothing else", async () => {
+  const { isCleanTarget } = await import("../scripts/try-env.mjs")
+  const T = String.raw`C:\Users\g\AppData\Local\Temp`
+  const yes = (p, tmp = T) => assert.equal(isCleanTarget(p, tmp), true, p)
+  const no = (p, tmp = T) => assert.equal(isCleanTarget(p, tmp), false, p)
+  yes(`${T}\\gs-try-abc`)
+  yes(`${T}\\gs-try-abc.del-k3j9`)
+  yes(String.raw`c:\users\G\appdata\local\temp\gs-try-abc`)
+  yes(`${T}\\gs-try-abc`, `${T}\\`)
+  no(`${T}\\gs-try-abc.del-x.del-y`)
+  no(`${T}\\gs-try-abc.del-`)
+  no(`${T}\\gs-try-`)
+  no(`${T}\\gs-try-abc.bak`)
+  no(`${T}\\other`)
+  no(`${T}\\gs-try-abc\\..`)
+  no(`${T}\\gs-try-abc\\..\\evil`)
+  no(`${T}\\sub\\gs-try-abc`)
+  no(String.raw`C:\Other\gs-try-abc`)
+  no(`${T}\\gs-try-abc\\project`)
+})
+
+test("try.mjs --clean runs the guard before it removes anything", async () => {
   const fs = await import("node:fs")
   const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
-  const m = /const ok = (\/.*?\/)\.test\(/.exec(src)
-  assert.ok(m, "no name check")
-  const re = eval(m[1])
-  for (const good of ["gs-try-abc", "gs-try-abc.del-k3j9"]) assert.ok(re.test(good), good)
-  for (const bad of ["gs-try-", "gs-try-abc.del-", "gs-try-abc.del-x.del-y", "gs-try-abc.bak", "other"]) assert.ok(!re.test(bad), bad)
+  assert.ok(src.indexOf("isCleanTarget(") >= 0 && src.indexOf("isCleanTarget(") < src.indexOf("cleanHome(real"))
 })
 
 test("every command try.mjs prints runs from any folder: absolute paths, none starting 'node scripts'", async () => {

@@ -22,6 +22,12 @@ export function cut(s, width = WIDTH) {
   return c.length <= width ? String(s) : c.slice(0, width - 1).join("") + "…"
 }
 
+/** At most `width` characters, the first an ellipsis, the right end kept; never splits a character. */
+export function cutLeft(s, width) {
+  const c = Array.from(String(s))
+  return c.length <= width ? String(s) : "…" + c.slice(c.length - (width - 1)).join("")
+}
+
 /**
  * A refused path for a 30-column row: relative to the session dir when it lies under it, else its
  * last two segments after an ellipsis. Keeps the path's own separator; case rules are paths.js's
@@ -206,7 +212,10 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     const entry = (r0) => {
       const r = r0.isPath ? { ...r0, detail: shortPath(r0.detail, w.roots[0]) } : r0
       const one = `  ${r.rule}${r.detail ? `  ${r.detail}` : ""}`
-      return len(one) <= WIDTH || !r.detail ? [one] : [`  ${r.rule}`, `    ${r.detail}`]
+      if (len(one) <= WIDTH || !r.detail) return [one]
+      // A path too wide for its own line is cut from the left, so the file name always shows.
+      const below = r0.isPath ? cutLeft(r.detail, WIDTH - 4) : r.detail
+      return [`  ${r.rule}`, `    ${below}`]
     }
     out.push(...cappedEntries(refused.map(entry), "  "))
   }

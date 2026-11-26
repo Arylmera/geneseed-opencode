@@ -16,7 +16,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, cleanHome, missingModules, overridesFor, printedCommands, realDirs, tryTurns } from "./try-env.mjs"
+import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, cleanHome, isCleanTarget, missingModules, overridesFor, printedCommands, realDirs, tryTurns } from "./try-env.mjs"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const SCRIPT = fileURLToPath(import.meta.url)
@@ -38,8 +38,7 @@ if (argv.includes("--clean")) {
     console.error(`clean: ${dir} does not exist`)
     process.exit(2)
   }
-  const ok = /^gs-try-[A-Za-z0-9]+(\.del-[A-Za-z0-9]+)?$/.test(path.basename(real)) && path.dirname(real).toLowerCase() === tmp().toLowerCase()
-  if (!dir || !ok) {
+  if (!dir || !isCleanTarget(real, tmp())) {
     console.error(`clean: refused. ${dir || "(no dir)"} is not a gs-try-* folder directly under ${tmp()}`)
     process.exit(2)
   }
