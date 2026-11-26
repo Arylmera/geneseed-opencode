@@ -32,8 +32,10 @@ Geneseed
   The carrier is read once a session, as the guard reads it: when it changes later, the gates stay
   as they were and "restart OpenCode to apply" is added.
 - **Refused**: tool calls the guard refused in this session, with the rule and the path or command.
-- **Memory**: `memory_search` calls and fact files read in this session, and facts created or
-  changed in the store since the panel first showed the session.
+- **Memory**: two lists, each the newest 3, then `+N`. First what the session used:
+  `memory_search` calls and fact files read in this session. Then what was learned: facts created
+  or changed in the store since the panel first showed the session. The store is the first one
+  that exists in Geneseed's order (or the one a search result names), read two folders deep.
 - **Loop** and **Factory**: runs registered for this repository that are not done.
 
 The panel appears only when a Geneseed carrier is found. A section with nothing to show is left
