@@ -5,7 +5,7 @@
 //   node scripts/try.mjs --clean <dir>
 //
 // It builds a home under the OS temp dir (gs-try-<random>) holding a Geneseed emit, a cli.json that
-// lists this checkout, a scripted model on 127.0.0.1 (no real model, no credentials), and a temp git
+// lists this checkout, a scripted model on 127.0.0.1 (scripts/fake-model.mjs: no real model, no credentials), and a temp git
 // repo with a real `loop init`. It checks what it can without a screen, prints each result, then
 // prints the one command that opens OpenCode's screen in that home. It never starts that screen.
 // Nothing reads or writes your real ~/.config/opencode, ~/.config/geneseed or ~/.claude.
@@ -15,7 +15,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor } from "./try-env.mjs"
+import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, tryTurns } from "./try-env.mjs"
 import { cfgDir, machineDir } from "../src/paths.js"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -60,7 +60,7 @@ const check = (name, pass, detail = "") => {
   console.log(`${pass ? "ok  " : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`)
 }
 
-for (const f of ["bin/build-driver.mjs", "bin/geneseed-cli.mjs", "tests/helpers/fake_model.mjs"]) {
+for (const f of ["bin/build-driver.mjs", "bin/geneseed-cli.mjs"]) {
   if (!fs.existsSync(path.join(GENESEED, f))) {
     console.error(`not a Geneseed checkout (missing ${f}): ${GENESEED}. Pass --geneseed <dir>.`)
     process.exit(2)
@@ -108,13 +108,10 @@ if (emit.status !== 0) console.error(emit.out.slice(-1500))
 fs.writeFileSync(path.join(CFG, "cli.json"), JSON.stringify({ plugins: [REPO] }, null, 2))
 const portFile = path.join(WORK, "fake-model.port")
 const requestsFile = path.join(WORK, "fake-model.requests.jsonl")
-const writes = [
-  { path: path.join(PROJECT, ".ssh", ["id", "rsa"].join("_")), content: "not a key" },
-  { path: path.join(PROJECT, "allowed.txt"), content: "ok" },
-]
+// One prompt: a write the secrets gate refuses, a memory_search, then a write that is allowed.
 const model = spawn(process.execPath, [
-  path.join(GENESEED, "tests", "helpers", "fake_model.mjs"),
-  "--port-file", portFile, "--requests", requestsFile, "--writes", JSON.stringify(writes), "--ttl", "1800",
+  path.join(REPO, "scripts", "fake-model.mjs"),
+  "--port-file", portFile, "--requests", requestsFile, "--turns", JSON.stringify(tryTurns(PROJECT)), "--ttl", "1800",
 ], { detached: true, stdio: "ignore", windowsHide: true })
 model.unref()
 for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(100)
@@ -255,6 +252,7 @@ console.log("  1. A Geneseed section in the right sidebar.")
 console.log("  2. Under it, Gates: on secrets, deletion, ownership, external; n/a done (OpenCode 2).")
 console.log("  3. After you type any prompt: a Refused line (Sealed Secrets, .ssh/id_rsa) as the scripted model tries that write.")
 console.log("  4. A Loop try-sidebar line with its step; it goes when you delete LOOP.md in the project.")
+console.log("  5. Memory: a searched row appears after the second turn.")
 console.log(`\nThe scripted model is running (pid ${model.pid}, stops itself after 30 minutes). Stop it now with:\n\n  Stop-Process -Id ${model.pid}\n`)
 console.log(`When done, remove the home:\n\n  node scripts/try.mjs --clean "${HOME}"\n`)
 process.exit(allOk ? 0 : 1)

@@ -63,3 +63,16 @@ export function missingModules(repo, names = RUNTIME_MODULES) {
     }
   })
 }
+
+/**
+ * What the scripted model asks for after one prompt in the project: a write the secrets gate
+ * refuses, a memory search, then a write that is allowed.
+ * @param {string} project
+ */
+export function tryTurns(project) {
+  return [
+    { tool: "write", path: path.join(project, ".ssh", ["id", "rsa"].join("_")), content: "not a key" },
+    { tool: "memory_search", args: { query: "geneseed" } },
+    { tool: "write", path: path.join(project, "allowed.txt"), content: "ok" },
+  ]
+}

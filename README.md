@@ -78,20 +78,21 @@ Run `npm install --ignore-scripts` in the checkout first (see Install): one chec
 `solid-js` or `@opentui/solid` does not resolve from it.
 
 It emits Geneseed into the throwaway home, lists this checkout in that home's `cli.json`, starts a
-scripted model on 127.0.0.1 (no real model, no credentials) that tries to write `.ssh/id_rsa`,
-registers a real loop in a temp git repo, and prints `ok` or `FAIL` for each headless check. It then
-prints one PowerShell command that opens OpenCode's screen in that home, what to look for (the
-Geneseed section, the gates, the refusal after any prompt, the loop), and the command that stops the
-scripted model (it also stops itself after 30 minutes). It never opens the screen itself.
+scripted model on 127.0.0.1 (`scripts/fake-model.mjs`: no real model, no credentials) that, after
+one prompt, tries to write `.ssh/id_rsa`, calls `memory_search` for "geneseed", then writes
+`allowed.txt`. It registers a real loop in a temp git repo and prints `ok` or `FAIL` for each
+headless check. It then prints one PowerShell command that opens OpenCode's screen in that home,
+the checklist below, and the command that stops the scripted model (it also stops itself after 30 minutes). It never opens the screen itself.
 
 Checklist for the live run, in the screen it opens:
 
 1. The Geneseed section is in the sidebar, with the gates.
 2. After you type any prompt, a Refused row appears (Sealed Secrets, `.ssh/id_rsa`).
 3. A Loop row `try-sidebar` is shown.
-4. In another PowerShell, `Rename-Item` the throwaway `.config\geneseed\loops.json` (in the home
+4. Memory: a searched row appears after the second turn.
+5. In another PowerShell, `Rename-Item` the throwaway `.config\geneseed\loops.json` (in the home
    the script printed): within a few seconds the loop row goes and the session keeps running.
-5. Quit, `Rename-Item` the throwaway `.config\opencode\AGENT.md`, start the screen again with the
+6. Quit, `Rename-Item` the throwaway `.config\opencode\AGENT.md`, start the screen again with the
    same command: the Geneseed panel is hidden.
 
 Remove a home with `node scripts/try.mjs --clean <dir>`; it refuses any folder not named `gs-try-*`
