@@ -99,3 +99,49 @@ test("try.mjs prints the README checklist: same items, same order, same words", 
   const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
   assert.match(src, /CHECKLIST\.forEach/)
 })
+
+test("cleanHome: a busy opencode.db deletes nothing, says so with the full command, exits 1", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const out = []
+  const err = []
+  const removed = []
+  const code = cleanHome(String.raw`C:\Temp\gs-try-abc`, {
+    isBusy: (f) => f.endsWith("opencode.db") && f.includes(".local"),
+    remove: (p) => removed.push(p),
+    log: (s) => out.push(s),
+    error: (s) => err.push(s),
+    script: String.raw`C:\repo\scripts\try.mjs`,
+  })
+  assert.equal(code, 1)
+  assert.deepEqual(removed, [])
+  assert.equal(err[0], "clean: OpenCode still has this home open. Quit it, then run this again:")
+  assert.equal(err[1], String.raw`  node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc"`)
+  assert.equal(err.length, 2)
+})
+
+test("cleanHome: the lock is looked for on the home's own opencode.db", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const asked = []
+  cleanHome("/t/gs-try-abc", { isBusy: (f) => (asked.push(f), false), remove: () => {}, log: () => {}, error: () => {}, script: "/r/try.mjs" })
+  assert.deepEqual(asked, [path.join("/t/gs-try-abc", ".local", "share", "opencode", "opencode.db")])
+})
+
+test("cleanHome: a free home is removed; any other delete error is one line with path and code", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const out = []
+  assert.equal(cleanHome("/t/gs-try-abc", { isBusy: () => false, remove: () => {}, log: (s) => out.push(s), error: () => {}, script: "/r/try.mjs" }), 0)
+  assert.deepEqual(out, ["removed /t/gs-try-abc"])
+  const err = []
+  const boom = Object.assign(new Error("EPERM: operation not permitted, rmdir 'x'"), { code: "EPERM", path: "/t/gs-try-abc/.cache" })
+  const code = cleanHome("/t/gs-try-abc", { isBusy: () => false, remove: () => { throw boom }, log: () => {}, error: (s) => err.push(s), script: "/r/try.mjs" })
+  assert.equal(code, 1)
+  assert.deepEqual(err, ["clean: could not remove /t/gs-try-abc/.cache (EPERM)"])
+})
+
+test("isBusy: a missing database is not busy; one that cannot be renamed is", async () => {
+  const { dbBusy } = await import("../scripts/try-env.mjs")
+  const mk = (code) => ({ existsSync: () => true, renameSync: () => { if (code) throw Object.assign(new Error(code), { code }) } })
+  assert.equal(dbBusy("/x/opencode.db", { existsSync: () => false, renameSync: () => { throw new Error("no") } }), false)
+  assert.equal(dbBusy("/x/opencode.db", mk(null)), false)
+  for (const c of ["EBUSY", "EPERM", "EACCES"]) assert.equal(dbBusy("/x/opencode.db", mk(c)), true, c)
+})

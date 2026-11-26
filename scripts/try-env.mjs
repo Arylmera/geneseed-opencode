@@ -97,3 +97,44 @@ export const CHECKLIST = [
   String.raw`In another PowerShell, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\geneseed\loops.json${"`"} (in the home the script printed): within a few seconds the loop row goes and the session keeps running.`,
   String.raw`Quit, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\opencode\AGENT.md${"`"}, start the screen again with the same command: the Geneseed panel is hidden.`,
 ]
+
+/**
+ * Is this file held by another process? A rename onto itself fails with EBUSY while OpenCode has its
+ * database open (a plain open for writing succeeds: SQLite shares it), which is the same lock that
+ * stops the delete.
+ * @param {string} file
+ * @param {{ existsSync: (f: string) => boolean, renameSync: (a: string, b: string) => void }} fs
+ */
+export function dbBusy(file, fs) {
+  if (!fs.existsSync(file)) return false
+  try {
+    fs.renameSync(file, file)
+    return false
+  } catch (e) {
+    return ["EBUSY", "EPERM", "EACCES"].includes(e?.code)
+  }
+}
+
+/** The one command that removes `home`, whole: runs from any folder. */
+export const cleanCommand = (script, home) => `node "${script}" --clean "${home}"`
+
+/**
+ * --clean's work, after the folder was checked to be a gs-try-* home. Nothing is deleted while
+ * OpenCode still holds the database; any other failure is one line, no stack.
+ * @returns {number} the exit code
+ */
+export function cleanHome(real, { isBusy, remove, log, error, script }) {
+  if (isBusy(path.join(real, ".local", "share", "opencode", "opencode.db"))) {
+    error("clean: OpenCode still has this home open. Quit it, then run this again:")
+    error(`  ${cleanCommand(script, real)}`)
+    return 1
+  }
+  try {
+    remove(real)
+  } catch (e) {
+    error(`clean: could not remove ${e?.path ?? real} (${e?.code ?? "unknown"})`)
+    return 1
+  }
+  log(`removed ${real}`)
+  return 0
+}

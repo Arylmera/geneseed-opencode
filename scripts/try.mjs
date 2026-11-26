@@ -16,9 +16,10 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
+import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, cleanHome, dbBusy, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const SCRIPT = fileURLToPath(import.meta.url)
 const argv = process.argv.slice(2)
 const opt = (name, dflt) => {
   const i = argv.indexOf(name)
@@ -42,9 +43,13 @@ if (argv.includes("--clean")) {
     console.error(`clean: refused. ${dir || "(no dir)"} is not a gs-try-* folder directly under ${tmp()}`)
     process.exit(2)
   }
-  fs.rmSync(real, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
-  console.log(`removed ${real}`)
-  process.exit(0)
+  process.exit(cleanHome(real, {
+    isBusy: (f) => dbBusy(f, fs),
+    remove: (d) => fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+    log: console.log,
+    error: console.error,
+    script: SCRIPT,
+  }))
 }
 
 // ---- setup -----------------------------------------------------------------------------------
