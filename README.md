@@ -41,7 +41,14 @@ cut at 30 characters. Files are checked every 3 seconds and read again only when
 
 ## Install
 
-Add the absolute path of this checkout to `plugins` in `~/.config/opencode/cli.json`
+Run this once in the checkout, so that `solid-js` and `@opentui/solid`, which `src/tui.tsx` imports,
+resolve from it:
+
+```
+npm install --ignore-scripts
+```
+
+Then add the absolute path of this checkout to `plugins` in `~/.config/opencode/cli.json`
 (or `$OPENCODE_CONFIG_DIR/cli.json`):
 
 ```json
@@ -67,6 +74,8 @@ node scripts/try.mjs --geneseed <Geneseed checkout> [--opencode <opencode.exe>]
 ```
 
 `--geneseed` may be left out when `GENESEED_SRC` is set.
+Run `npm install --ignore-scripts` in the checkout first (see Install): one check FAILs when
+`solid-js` or `@opentui/solid` does not resolve from it.
 
 It emits Geneseed into the throwaway home, lists this checkout in that home's `cli.json`, starts a
 scripted model on 127.0.0.1 (no real model, no credentials) that tries to write `.ssh/id_rsa`,

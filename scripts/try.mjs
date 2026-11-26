@@ -15,7 +15,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { KEEP, buildEnv, overridesFor } from "./try-env.mjs"
+import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor } from "./try-env.mjs"
 import { cfgDir, machineDir } from "../src/paths.js"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -162,6 +162,11 @@ try {
   plugins = JSON.parse(fs.readFileSync(path.join(CFG, "cli.json"), "utf8")).plugins ?? []
 } catch { /* reported below */ }
 check("cli.json lists the plugin", plugins.length === 1 && path.resolve(plugins[0]) === REPO, plugins[0])
+
+// OpenCode loads src/tui.tsx from this checkout, so its imports resolve from here, not from OpenCode.
+const missing = missingModules(REPO)
+check(`${RUNTIME_MODULES.join(" and ")} resolve from the repo`, missing.length === 0,
+  missing.length ? `missing ${missing.join(", ")}: run npm install --ignore-scripts in ${REPO}` : "")
 
 let listening = false
 if (port) {

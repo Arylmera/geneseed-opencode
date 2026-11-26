@@ -1,5 +1,6 @@
 // The environment a throwaway OpenCode run gets: an allowlist, not a scrub. Anything not named
 // here (OPENCODE_CONFIG, OPENCODE_AUTH_CONTENT, proxies, credentials, CLAUDE_CONFIG_DIR, ...) is gone.
+import { createRequire } from "node:module"
 import path from "node:path"
 
 // What Windows and Node need to start, and what the screen needs to draw. Compared case-insensitively.
@@ -39,4 +40,26 @@ export function buildEnv(parent, overrides, extra = {}) {
   const out = {}
   for (const [k, v] of Object.entries(parent)) if (keep.has(k.toLowerCase()) && v !== undefined) out[k] = v
   return { ...out, ...overrides, ...extra }
+}
+
+/** The modules src/tui.tsx imports that OpenCode does not hand it: they resolve from the repo. */
+export const RUNTIME_MODULES = ["solid-js", "@opentui/solid"]
+
+/**
+ * The names in `names` that do not resolve from `repo` (createRequire on its package.json). A package
+ * whose export map hides its root from require is installed, so it counts as found.
+ * @param {string} repo
+ * @param {string[]} [names]
+ * @returns {string[]}
+ */
+export function missingModules(repo, names = RUNTIME_MODULES) {
+  const req = createRequire(path.join(repo, "package.json"))
+  return names.filter((n) => {
+    try {
+      req.resolve(n)
+      return false
+    } catch (e) {
+      return e?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED"
+    }
+  })
 }
