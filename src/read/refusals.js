@@ -1,3 +1,5 @@
+import { clean } from "../clean.js"
+
 export const MARKER = 'No tool named "BLOCKED, not a missing tool:'
 // The guard's gateText sentence that ends in the rule's name: `It was refused because <why>. (<rule>)`.
 export const REFUSED_BECAUSE = "It was refused because"
@@ -15,14 +17,13 @@ function ruleOf(message) {
   return "refused"
 }
 
-// A command as one line of text: a run of whitespace (newlines, tabs, CR) is one space, every other
-// control character (ESC included) is dropped, the ends trimmed. The model wrote it; the row is ours.
-const oneLine = (t) => t.replace(/(?!\s)\p{Cc}/gu, "").replace(/\s+/g, " ").trim()
-
 function detailOf(input) {
   if (!isObj(input)) return { detail: "", isPath: false }
   for (const k of DETAIL_KEYS) {
-    if (typeof input[k] === "string" && input[k] !== "") return k === "command" ? { detail: oneLine(input[k]), isPath: false } : { detail: input[k], isPath: true }
+    // A path or a command as one line of text (src/clean.js): the model wrote it; the row is ours.
+    // One that cleans to nothing is no detail (an empty path would resolve against the cwd).
+    const detail = typeof input[k] === "string" ? clean(input[k]) : ""
+    if (detail) return { detail, isPath: k !== "command" }
   }
   return { detail: "", isPath: false }
 }

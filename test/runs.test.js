@@ -91,6 +91,15 @@ test("stopped gives its reason, or an empty note", () => {
   assert.equal(runLine("loop", { title: "T", node: "n", iteration: 1, status: "stopped", reason: "gate amended 3 times" }).note, "gate amended 3 times")
   assert.equal(runLine("factory", { title: "F", stage: "s", status: "stopped", reason: null }).note, "")
 })
+test("title, step and reason are one line of text: whitespace a space, ESC and bidi dropped", () => {
+  // The run file is written by the model: its text must not break, colour or reorder a row.
+  const got = runLine("loop", { title: "fix\tthe\nbug\x1b]0;pwn\x07", node: "pl\x1ban\n", iteration: 2, status: "stopped", reason: "gate\r\namended\u202E" })
+  assert.deepEqual(got, { name: "fix the bug]0;pwn", step: `plan${MID}#2`, note: "gate amended" })
+  assert.equal(runLine("factory", { title: "F", stage: "re\tview", status: "running" }).step, "re view")
+  // U+200D is kept: it joins an emoji family into one cluster.
+  const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"
+  assert.equal(runLine("factory", { title: family, stage: "s" }).name, family)
+})
 test("done gives null", () => {
   assert.equal(runLine("loop", { title: "T", node: "n", iteration: 1, status: "done" }), null)
   assert.equal(runLine("factory", { title: "F", stage: "s", status: "done" }), null)

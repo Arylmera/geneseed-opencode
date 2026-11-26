@@ -627,6 +627,8 @@ test("a gate flipped in the carrier shows the hint", () => {
   assert.equal(hint("Deletion gate: off\n"), false)
 })
 
+// What a row may never hold: a control or format character, U+200D (an emoji joiner) aside.
+const SHOWN_NOT = /(?!\u200D)[\p{Cc}\p{Cf}]/u
 const HEREDOC = "cat > notes.txt <<'EOF'\nline one\n\tline two\nEOF\n"
 const TABS = "git\tpush\r\n  --force\t\torigin main\r\n"
 const ESC = "echo \x1b[31mred\x1b[0m done\x07"
@@ -636,7 +638,7 @@ test("refused commands with newlines, tabs, CR and ESC: every row W wide, no con
     const out = rows(W, CARRIER, messages, { width })
     for (const t of out) {
       assert.equal(len(t), width, `W=${width}: ${JSON.stringify(t)}`)
-      assert.ok(!/\p{Cc}/u.test(t), JSON.stringify(t))
+      assert.ok(!SHOWN_NOT.test(t), JSON.stringify(t))
     }
   }
   const out = rows(W, CARRIER, messages, { width: 32 })
@@ -648,6 +650,58 @@ test("refused commands with newlines, tabs, CR and ESC: every row W wide, no con
     pad("  Sealed Secrets"),
     "  cat > notes.txt <<'EOF' line …",
   ])
+})
+
+test("model and file text in every row: whitespace a space, control and bidi characters dropped", () => {
+  const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"
+  const snap = {
+    ...CARRIER,
+    "/cfg/memory": [],
+    "/m/loops.json": JSON.stringify({ loops: [{ root: "/r" }] }),
+    "/m/factories.json": JSON.stringify({ factories: [{ root: "/r/sub" }] }),
+    "/r/LOOP.md": state("loop-state", { title: "fix\tthe\nbug\x1b]0;pwn\x07", node: "pl\x1ban", iteration: 2, status: "stopped", reason: "gate\r\namended\u202E" }),
+    "/r/sub/FACTORY.md": state("factory-state", { title: `${family} ship`, stage: "re\tview", status: "running" }),
+  }
+  // The rule name reaches the row raw from the reader: only the panel's own choke point cleans it.
+  const rtl = { ...refusal, state: { ...refusal.state, error: { message: refusal.state.error.message.replace("(Sealed Secrets)", "(Sealed\u202E Secrets)") } } }
+  const messages = [
+    msg(refused(1, { path: "/r/sub/a\n\x1b[2Jb\tc.txt" })),
+    msg({ ...rtl, id: "r2", state: { ...rtl.state, input: { command: "echo \u202Egnp.exe" } } }),
+    msg(done("memory_search", { query: "host\nparity\x1b[31m" }, `Facts in /cfg/memory (read <slug>.md there):\na ${DASH} 1`, 3)),
+  ]
+  const at = {}
+  for (const width of [24, 32, 44]) {
+    at[width] = rows(W, snap, messages, { width })
+    assert.ok(at[width].length > 5)
+    for (const t of at[width]) {
+      assert.equal(len(t), width, `W=${width}: ${JSON.stringify(t)}`)
+      assert.ok(!SHOWN_NOT.test(t), `W=${width}: ${JSON.stringify(t)}`)
+    }
+  }
+  // Folded, only the steps show: the node's ESC and the stage's tab are gone.
+  assert.deepEqual(at[24].slice(3, 5), ["↻ Loop         plan · #2", "⚙ Factory        re view"])
+  // The family emoji stays one 2-column cluster, its joiners kept.
+  assert.deepEqual(at[32].slice(6), [
+    pad("  Sealed Secrets"),
+    pad("  echo gnp.exe"),
+    pad("  Sealed Secrets"),
+    pad("  a [2Jb c.txt"),
+    `── ↻ loop ${R.repeat(12)} plan · #2`,
+    pad("  fix the bug]0;pwn"),
+    pad("  gate amended"),
+    `── ⚙ factory ${R.repeat(11)} re view`,
+    `  ${family} ship${" ".repeat(23)}`,
+    `── ◆ memory ${R.repeat(18)} 1`,
+    pad('  ⌕ "host parity[31m"  1'),
+  ])
+  assert.equal(len(`  ${family} ship`), 9)
+  assert.deepEqual(at[44].slice(6, 10), [
+    pad("  Sealed Secrets  echo gnp.exe", 44),
+    pad("  Sealed Secrets  a [2Jb c.txt", 44),
+    `── ↻ loop ${R.repeat(24)} plan · #2`,
+    `  fix the bug]0;pwn${" ".repeat(13)}gate amended`,
+  ])
+  assert.equal(at[44][13], `  ⌕ "host parity[31m"${" ".repeat(22)}1`)
 })
 
 test("refused path detail: relative to the session dir, else the last two segments; a command stays", () => {

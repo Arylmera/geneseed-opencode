@@ -1,4 +1,5 @@
 import path from "node:path"
+import { clean } from "../clean.js"
 import { flavor } from "../paths.js"
 
 const DASH = " \u2014 "
@@ -109,7 +110,7 @@ export function readMemoryUse(messages, store) {
         const text = textOf(part.state)
         const dir = namedDir(text)
         if (dir) root = dir
-        calls.push({ kind: "searched", label: String(input.query ?? ""), count: countOf(text) })
+        calls.push({ kind: "searched", label: clean(String(input.query ?? "")), count: countOf(text) })
       } else if (part.name === "read") {
         const file = typeof input.filePath === "string" ? input.filePath : input.path
         if (typeof file === "string" && file) calls.push({ kind: "read", file })

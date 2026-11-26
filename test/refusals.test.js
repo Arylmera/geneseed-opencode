@@ -60,8 +60,18 @@ test("detail: a command is one line: whitespace runs are one space, control char
   assert.equal(detail(TABS), "git push --force origin main")
   assert.equal(detail(ESC), "echo [31mred[0m done")
   assert.equal(detail(" \n\t "), "")
-  // A path is left as it is.
-  assert.equal(readRefusals([msg(part(MARK, { path: "a\tb" }))])[0].detail, "a\tb")
+  // Bidi and format controls (U+202E RLO, the U+2066-2069 isolates, U+FEFF) are dropped too, so the
+  // row cannot show the text reordered: what is drawn is the order the guard saw.
+  assert.equal(detail("echo \u202Egnp.exe"), "echo gnp.exe")
+  assert.equal(detail("rm \u2066x\u2069 \uFEFFy"), "rm x y")
+  // A path takes the same rules, for the same reason (the model wrote it too): the tab is a space,
+  // the newline and ESC sequence no longer break or colour the row.
+  const path = (p) => readRefusals([msg(part(MARK, { path: p }))])[0]
+  assert.equal(path("a\tb").detail, "a b")
+  assert.equal(path("/r/a\n\x1b[2Jb\u202Ec.txt").detail, "/r/a [2Jbc.txt")
+  // A key whose value cleans to nothing is no detail: the next key is read, else there is none.
+  assert.deepEqual(path("\x1b\u202E"), { id: "p", rule: "refused", detail: "", isPath: false })
+  assert.equal(readRefusals([msg(part(MARK, { path: "\x07", command: "ls" }))])[0].detail, "ls")
 })
 test("detail never reads content: a secret in content leaks nowhere", () => {
   const secret = "-----BEGIN PRIVATE KEY-----"

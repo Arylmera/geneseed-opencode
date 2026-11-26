@@ -45,6 +45,11 @@ Default width (32 columns), as src/panel.js renders it. src/panel.js owns every 
 inner width W and a glyph set and returns rows of segments (text, theme role, bold, inverse) whose
 texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn box's width
 (OpenTUI `onSizeChange` / `width`), 32 until it is laid out.
+- Row text (src/clean.js): text the model or a file wrote (a refused path or command, a memory
+  query, a run's title, step and stop reason) is one line, each whitespace run one space, the ends
+  trimmed. No row holds a control character or a format character (bidi overrides and isolates
+  included) other than U+200D, the joiner of an emoji sequence; every segment's text passes this
+  filter as it enters a row.
 - Header: GENESEED (accent, bold) and one badge at the right, in priority order: `■ off` (error),
   `◐ warn`, `↺` (restart due), `▲ <n>` (refusals plus runs that wait); nothing when quiet. Folded
   (W < 28), where there is no hint line, a restart due under `■ off` or `◐ warn` puts `↺` before it.

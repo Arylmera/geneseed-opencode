@@ -1,3 +1,4 @@
+import { clean } from "../clean.js"
 import { sameRoot } from "../paths.js"
 
 const isObj = (v) => v !== null && typeof v === "object"
@@ -67,10 +68,11 @@ export function runLine(kind, state, sep = "·") {
   const at = kind === "loop" ? state.node : state.stage
   if (typeof at !== "string") return null
   if (state.status === "done") return null
-  let step = at
-  if (kind === "loop" && typeof state.iteration === "number") step = `${at} ${sep} #${state.iteration}`
+  // The run file's text as one line each (src/clean.js).
+  let step = clean(at)
+  if (kind === "loop" && typeof state.iteration === "number") step = `${step} ${sep} #${state.iteration}`
   let note = ""
   if (state.status === "awaiting") note = "waits for you"
-  else if (state.status === "stopped") note = typeof state.reason === "string" ? state.reason : ""
-  return { name: state.title, step, note }
+  else if (state.status === "stopped") note = typeof state.reason === "string" ? clean(state.reason) : ""
+  return { name: clean(state.title), step, note }
 }

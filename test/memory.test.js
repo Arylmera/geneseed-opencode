@@ -32,6 +32,11 @@ test("a search with a heading and 4 fact lines counts 4", () => {
   const rows = readMemoryUse([msg(done("memory_search", { query: "parity" }, text, 5))], "/s")
   assert.deepEqual(rows, [{ kind: "searched", label: "parity", count: 4 }])
 })
+test("a query is one line of text: newline a space, ESC and bidi controls dropped", () => {
+  // The model wrote the query; the row shows it between quotes, so it must not break or colour it.
+  const rows = readMemoryUse([msg(done("memory_search", { query: "host\nparity\x1b[31m \u202Eq\t" }, "No fact", 5))], "/s")
+  assert.equal(rows[0].label, "host parity[31m q")
+})
 test("a No fact result counts 0", () => {
   const rows = readMemoryUse([msg(done("memory_search", { query: "zz" }, 'No fact in /s matches "zz".'))], "/s")
   assert.deepEqual(rows, [{ kind: "searched", label: "zz", count: 0 }])

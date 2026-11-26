@@ -6,6 +6,7 @@ import { readGates } from "./read/gates.js"
 import { readRefusals } from "./read/refusals.js"
 import { learned, readMemoryUse, storeNamed } from "./read/memory.js"
 import { readState, rowsFor, runLine } from "./read/runs.js"
+import { strip } from "./clean.js"
 import { clusterCols, cols, graphemes } from "./width.js"
 
 /** The inner width when the TUI cannot measure the drawn box. */
@@ -212,11 +213,14 @@ export function sameGates(a, b) {
 
 
 /**
+ * Every segment's text enters a row here, stripped (src/clean.js): no control or format character
+ * but U+200D, whitespace a space each. The readers clean their labels already; this choke point
+ * holds for any text that reaches a row, a gate name or a rule name included.
  * @param {string} text
  * @param {Role} role
  * @param {{ bold?: boolean, inverse?: boolean, flex?: "left"|"right" }} [more]
  */
-const seg = (text, role, more) => ({ text, role, ...more })
+const seg = (text, role, more) => ({ text: strip(text), role, ...more })
 const widthOf = (segs) => segs.reduce((n, s) => n + len(s.text), 0)
 
 /** The row cut or padded (with spaces) to exactly W columns; empty segments dropped. */
