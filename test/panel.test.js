@@ -160,6 +160,19 @@ test("restart: the gates the guard holds, the badge, and the hint under the gate
   ])
 })
 
+test("restart, folded: the mark beside a higher badge, since there is no hint line", () => {
+  const first = "Deletion gate: off\n"
+  const head = (env, carrier, width = 24) => rows(W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { width, carrier, env })[0]
+  assert.equal(head({ GENESEED_GUARD: "off" }, first), `GENESEED${" ".repeat(9)}↺ ■ off`)
+  assert.equal(head({ GENESEED_GUARD: "warn" }, first), `GENESEED${" ".repeat(8)}↺ ◐ warn`)
+  // The restart badge itself, folded: once.
+  assert.equal(head({}, first), `GENESEED${" ".repeat(15)}↺`)
+  // No restart due: the badge alone.
+  assert.equal(head({ GENESEED_GUARD: "off" }, "Secrets gate: off\n"), `GENESEED${" ".repeat(11)}■ off`)
+  // Not folded: the badge alone, the hint line carries the restart.
+  assert.equal(head({ GENESEED_GUARD: "warn" }, first, 32), `GENESEED${" ".repeat(18)}◐ warn`)
+})
+
 test("a waiting factory and a stopped loop: waits in warning bold, the reason muted, the count badge", () => {
   const snap = {
     ...CARRIER,

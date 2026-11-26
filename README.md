@@ -45,7 +45,8 @@ The panel appears only when a Geneseed carrier is found. A section with nothing 
 out. Each section opens with a rule line that carries its summary at the right: gates on of
 switchable, the refusal count, a run's step or stage, memory used and learned. The header badge
 shows, in this order, `■ off` (guard off, with a `GUARD OFF` bar), `◐ warn`, `↺` (restart due), or
-`▲ <n>`: refusals plus runs that wait for you. Lists show the newest 3, then `+N`.
+`▲ <n>`: refusals plus runs that wait for you. In the folded panel a restart due under `■ off` or
+`◐ warn` shows as `↺` before that badge. Lists show the newest 3, then `+N`.
 
 Every row fits the sidebar's width exactly (measured from the drawn box; 32 until it is laid out).
 Below 28 columns each section folds to one line (runs too: the newest run's step, after the run

@@ -330,7 +330,9 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
           : count
             ? [seg(`${g.alert} ${count}`, "warning")]
             : []
-  out.push(spreadW([seg("GENESEED", "accent", { bold: true })], badge, { min: 1 }))
+  // Folded, there is no hint line: a restart due under a higher badge shows as its mark before it.
+  const mark = fold && restart && gates.guard !== "on" ? [seg(g.restart, "warning"), seg(" ", "text")] : []
+  out.push(spreadW([seg("GENESEED", "accent", { bold: true })], [...mark, ...badge], { min: 1 }))
 
   // Gates. Guard off replaces the section with one line, under an inverse error bar.
   if (gates.guard === "off") {

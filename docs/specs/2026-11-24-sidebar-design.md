@@ -46,7 +46,8 @@ inner width W and a glyph set and returns rows of segments (text, theme role, bo
 texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn box's width
 (OpenTUI `onSizeChange` / `width`), 32 until it is laid out.
 - Header: GENESEED (accent, bold) and one badge at the right, in priority order: `■ off` (error),
-  `◐ warn`, `↺` (restart due), `▲ <n>` (refusals plus runs that wait); nothing when quiet.
+  `◐ warn`, `↺` (restart due), `▲ <n>` (refusals plus runs that wait); nothing when quiet. Folded
+  (W < 28), where there is no hint line, a restart due under `■ off` or `◐ warn` puts `↺` before it.
 - Each section opens with `── <glyph> <name> `, `─` filling the width, then ` <summary>`. Order:
   gates (`<on> of <switchable>`), refused (`<n>`), one per loop run (`<step> · #<i>`), one per
   factory run (`<stage>`), memory (`<used> · <learned> new`, `· 0 new` dropped).
