@@ -320,11 +320,15 @@ test("cols: display columns, not code points; the panel's glyphs are 1", () => {
   assert.equal(cols("漢字"), 4)
   assert.equal(cols("Ａ"), 2)
   assert.equal(cols("\u{1F600}"), 2)
-  assert.equal(cols("👨‍👩‍👧"), 2)
-  assert.equal(cols("❤️"), 2)
-  assert.equal(cols("🇧🇪"), 2)
-  assert.equal(cols("é"), 1)
-  assert.equal(cols("️"), 0)
+  assert.equal(cols("\u{1F525}"), 2) // fire, Emoji_Presentation
+  assert.equal(cols("\u{1F468}\u200d\u{1F469}\u200d\u{1F467}"), 2) // ZWJ family
+  assert.equal(cols("\u{1F1E7}\u{1F1EA}"), 2) // regional-indicator pair
+  assert.equal(cols("\u2764\ufe0f"), 2)
+  assert.equal(cols("\u26a0\ufe0f"), 2) // warning sign with U+FE0F
+  // Text-presentation symbols are 1.
+  for (const t of ["©", "®", "™", "↔", "▶", "\u26a0", "✔"]) assert.equal(cols(t), 1, t)
+  assert.equal(cols("e\u0301"), 1)
+  assert.equal(cols("\ufe0f"), 0)
   for (const set of [GLYPHS.unicode, GLYPHS.ascii]) for (const [k, v] of Object.entries(set)) assert.equal(cols(v), 1, k)
   assert.equal(cols("…·"), 2)
 })
