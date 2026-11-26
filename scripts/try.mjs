@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Try the sidebar plugin in OpenCode's own screen, in a throwaway home. No dependencies.
 //
-//   node scripts/try.mjs [--geneseed <dir>] [--opencode <opencode.exe>]
+//   node scripts/try.mjs [--geneseed <dir> | GENESEED_SRC] [--opencode <opencode.exe>]
 //   node scripts/try.mjs --clean <dir>
 //
 // It builds a home under the OS temp dir (gs-try-<random>) holding a Geneseed emit, a cli.json that
@@ -15,6 +15,8 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { KEEP, buildEnv, overridesFor } from "./try-env.mjs"
+import { cfgDir, machineDir } from "../src/paths.js"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const argv = process.argv.slice(2)
@@ -46,13 +48,17 @@ if (argv.includes("--clean")) {
 }
 
 // ---- setup -----------------------------------------------------------------------------------
-const GENESEED = path.resolve(opt("--geneseed", "C:/Users/guill/Documents/git/Geneseed"))
+const geneseedArg = opt("--geneseed", process.env.GENESEED_SRC)
+if (!geneseedArg) {
+  console.error("Pass --geneseed <Geneseed checkout> or set GENESEED_SRC.")
+  process.exit(2)
+}
+const GENESEED = path.resolve(geneseedArg)
 const results = []
 const check = (name, pass, detail = "") => {
   results.push(pass)
   console.log(`${pass ? "ok  " : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`)
 }
-const PROVIDER_CREDENTIAL = /^(?:AWS|ANTHROPIC|OPENAI|AZURE|GOOGLE|GEMINI|VERTEX|OPENROUTER|GROQ|MISTRAL|XAI|DEEPSEEK|GITHUB|GH|OPENCODE)_.*(?:KEY|TOKEN|SECRET|CREDENTIALS|PROFILE)(?:_ID|_FILE)?$/i
 
 for (const f of ["bin/build-driver.mjs", "bin/geneseed-cli.mjs", "tests/helpers/fake_model.mjs"]) {
   if (!fs.existsSync(path.join(GENESEED, f))) {
@@ -61,11 +67,19 @@ for (const f of ["bin/build-driver.mjs", "bin/geneseed-cli.mjs", "tests/helpers/
   }
 }
 
-// What the owner's real files looked like before, to prove they were left alone.
-const realCfg = path.join(os.homedir(), ".config", "opencode")
-const realFiles = ["cli.json", "opencode.json"].map((f) => path.join(realCfg, f))
-const mtimes = () => realFiles.map((f) => (fs.existsSync(f) ? fs.statSync(f).mtimeMs : null))
-const before = mtimes()
+// What the owner's real config looked like before, to prove it was left alone: the top-level entries
+// (name and mtime) of the real OpenCode config dir, Geneseed machine dir and ~/.claude, from the
+// parent environment.
+const realHome = os.homedir()
+const realDirs = [cfgDir(process.env, realHome), machineDir(process.env, realHome), path.join(realHome, ".claude")]
+const snapshot = () => JSON.stringify(realDirs.map((d) => {
+  try {
+    return fs.readdirSync(d).sort().map((n) => [n, fs.statSync(path.join(d, n)).mtimeMs])
+  } catch {
+    return null
+  }
+}))
+const before = snapshot()
 
 const HOME = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "gs-try-")))
 const CFG = path.join(HOME, ".config", "opencode")
@@ -76,26 +90,9 @@ for (const d of [CFG, PROJECT, WORK, path.join(HOME, ".local", "share"), path.jo
   fs.mkdirSync(d, { recursive: true })
 }
 
-// The throwaway environment. APPDATA and LOCALAPPDATA move too: Windows hosts keep state there.
-const OVERRIDES = {
-  HOME,
-  USERPROFILE: HOME,
-  OPENCODE_CONFIG_DIR: CFG,
-  XDG_CONFIG_HOME: path.join(HOME, ".config"),
-  XDG_DATA_HOME: path.join(HOME, ".local", "share"),
-  XDG_STATE_HOME: path.join(HOME, ".local", "state"),
-  XDG_CACHE_HOME: path.join(HOME, ".cache"),
-  APPDATA: path.join(HOME, "AppData", "Roaming"),
-  LOCALAPPDATA: path.join(HOME, "AppData", "Local"),
-  GENESEED_HOME: path.join(HOME, ".geneseed"),
-  GENESEED_NOTIFY: "off",
-}
-const env = (extra = {}) => {
-  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !PROVIDER_CREDENTIAL.test(k)))
-  delete base.GENESEED_GUARD
-  delete base.GENESEED_HARNESS
-  return { ...base, ...OVERRIDES, ...extra }
-}
+// The throwaway environment: an allowlist (see try-env.mjs), then the overrides.
+const OVERRIDES = overridesFor(HOME)
+const env = (extra = {}) => buildEnv(process.env, OVERRIDES, extra)
 const run = (cmd, args, cwd, timeout = 120_000) => {
   const r = spawnSync(cmd, args, { cwd, env: env({ PWD: cwd }), encoding: "utf8", timeout, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] })
   return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` }
@@ -122,6 +119,11 @@ const model = spawn(process.execPath, [
 model.unref()
 for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(100)
 const port = fs.existsSync(portFile) ? fs.readFileSync(portFile, "utf8").trim() : ""
+if (!port) {
+  try { process.kill(model.pid) } catch { /* already gone */ }
+  console.error(`FAIL  the fake model never listened (no port file after 10 s); stopped pid ${model.pid}. Home left at ${HOME}`)
+  process.exit(1)
+}
 
 if (port) {
   // The only provider is the scripted model; `model` and `small_model` both name it.
@@ -210,8 +212,7 @@ const texts = (lines ?? []).map((l) => l.text)
 check("panel builds the Geneseed section and the gates", texts[0] === "Geneseed" && texts.some((t) => /^\s+on\s+secrets/.test(t)), texts.slice(0, 4).join(" | ") || probeOut.slice(-300))
 check("panel builds the loop line", texts.some((t) => /^ Loop\s+try-sidebar/.test(t)), texts.filter((t) => /Loop/.test(t) || /^\s{3}\S/.test(t)).join(" | "))
 
-const after = mtimes()
-check("your real ~/.config/opencode cli.json and opencode.json are untouched", before.every((m, i) => m === after[i]), before.map((m) => (m === null ? "absent" : "present")).join("/"))
+check("your real OpenCode config dir, Geneseed machine dir and ~/.claude are untouched (top-level entries and mtimes)", snapshot() === before)
 
 // 6. The command for the owner. A .ps1 in the home sets the environment, so the command itself is plain.
 const exe = opt("--opencode", findOpencode())
@@ -230,9 +231,10 @@ function findOpencode() {
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`
 const ps1 = [
   "# Opens OpenCode's screen in the throwaway home made by scripts/try.mjs.",
+  // A fresh environment: everything not on the allowlist is cleared, then the throwaway values are set.
+  `$keep = @(${KEEP.map(q).join(", ")})`,
+  'Get-ChildItem Env: | Where-Object { $keep -notcontains $_.Name } | ForEach-Object { Remove-Item -LiteralPath ("Env:" + $_.Name) -ErrorAction SilentlyContinue }',
   ...Object.entries({ ...OVERRIDES, PWD: PROJECT }).map(([k, v]) => `$env:${k} = ${q(v)}`),
-  "Remove-Item Env:GENESEED_GUARD, Env:GENESEED_HARNESS -ErrorAction SilentlyContinue",
-  `Get-ChildItem Env: | Where-Object { $_.Name -match ${q(PROVIDER_CREDENTIAL.source)} } | ForEach-Object { Remove-Item ("Env:" + $_.Name) }`,
   `Set-Location ${q(PROJECT)}`,
   `& ${q(exe)} --standalone`,
   "",
