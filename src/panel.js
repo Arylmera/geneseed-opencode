@@ -1,35 +1,87 @@
-// The panel as plain lines: snapshot of polled files + session messages in, { text, role }[] out.
-// Pure: no OpenCode and no fs import; tui.tsx does the reading and the drawing.
+// The panel as rows: snapshot of polled files + session messages in, Row[] out, each row exactly
+// `width` columns. Pure: no OpenCode and no fs import; tui.tsx does the reading and draws the rows
+// as they are.
 import { flavor } from "./paths.js"
 import { readGates } from "./read/gates.js"
 import { readRefusals } from "./read/refusals.js"
 import { learned, readMemoryUse, storeNamed } from "./read/memory.js"
 import { readState, rowsFor, runLine } from "./read/runs.js"
 
-export const WIDTH = 30
+/** The inner width when the TUI cannot measure the drawn box. */
+export const WIDTH = 32
+/** Below this the panel folds to one line a section. */
+export const FOLD = 28
+/** Above this the panel goes wide: gates on up to 4 columns, items on one line. */
+export const WIDE = 40
 export const SHOW = 3
 
 /**
- * @typedef {{ text: string, role: "text"|"muted"|"warning" }} Line
+ * A segment of a row: its text, the theme role that colours it, bold, and inverse (drawn on a
+ * background of its role's colour). A row is an array of segments whose texts add up to exactly the
+ * panel width, so the TUI draws them side by side and does no arithmetic.
+ * @typedef {"text"|"muted"|"success"|"warning"|"error"|"accent"} Role
+ * @typedef {{ text: string, role: Role, bold?: boolean, inverse?: boolean }} Seg
+ * @typedef {Seg[]} Row
  * @typedef {{ carriers: string[], stores: string[], loopsReg: string, factReg: string, roots: string[], platform: string }} Watch
+ * @typedef {Record<string, string>} Glyphs
  */
+
+/**
+ * Every glyph the panel draws: [name, Unicode, ASCII]. The ASCII set stands in when the plugin
+ * option `ascii` is true or GENESEED_SIDEBAR_ASCII=1.
+ */
+export const GLYPH_TABLE = [
+  ["on", "●", "*"],
+  ["off", "○", "o"],
+  ["ok", "✓", "+"],
+  ["na", "–", "-"],
+  ["alert", "▲", "!"],
+  ["stop", "■", "#"],
+  ["warn", "◐", "~"],
+  ["restart", "↺", "R"],
+  ["loop", "↻", "L"],
+  ["factory", "⚙", "F"],
+  ["memory", "◆", "M"],
+  ["search", "⌕", "?"],
+  ["learned", "+", "+"],
+  ["rule", "─", "-"],
+]
+
+/** @type {{ unicode: Glyphs, ascii: Glyphs }} */
+export const GLYPHS = {
+  unicode: Object.fromEntries(GLYPH_TABLE.map(([k, u]) => [k, u])),
+  ascii: Object.fromEntries(GLYPH_TABLE.map(([k, , a]) => [k, a])),
+}
+
+/**
+ * The glyph set: ASCII when the plugin option `ascii` is exactly true (cli.json
+ * `{ "package": "<path>", "options": { "ascii": true } }`) or GENESEED_SIDEBAR_ASCII is "1".
+ * @param {Record<string, unknown>|undefined} options context.options
+ * @param {Record<string, string|undefined>|undefined} env
+ * @returns {Glyphs}
+ */
+export function glyphsFor(options, env) {
+  return options?.ascii === true || env?.GENESEED_SIDEBAR_ASCII === "1" ? GLYPHS.ascii : GLYPHS.unicode
+}
 
 const len = (s) => Array.from(s).length
 
 /** At most `width` characters, the last an ellipsis; never splits a character. */
 export function cut(s, width = WIDTH) {
   const c = Array.from(String(s))
-  return c.length <= width ? String(s) : c.slice(0, width - 1).join("") + "…"
+  if (c.length <= width) return String(s)
+  return width <= 0 ? "" : c.slice(0, width - 1).join("") + "…"
 }
 
 /** At most `width` characters, the first an ellipsis, the right end kept; never splits a character. */
 export function cutLeft(s, width) {
   const c = Array.from(String(s))
-  return c.length <= width ? String(s) : "…" + c.slice(c.length - (width - 1)).join("")
+  if (c.length <= width) return String(s)
+  return width <= 0 ? "" : "…" + c.slice(c.length - (width - 1)).join("")
 }
 
 /**
- * A refused path for a 30-column row: relative to the session dir when it lies under it, else its
+ * A refused path for a panel row: relative to the session dir when it lies under it, else its
  * last two segments after an ellipsis. Keeps the path's own separator; case rules are paths.js's
  * (a drive-letter path is win32, so compared case-insensitively).
  * @param {string} detail
@@ -46,42 +98,6 @@ export function shortPath(detail, dir) {
   return parts.length > 2 ? `…${sep}${parts.slice(-2).join(sep)}` : detail
 }
 
-/**
- * A row that lists names is never cut: wrap at ", " to `width`, continuation lines aligned under
- * the first name. A name longer than the width stays whole on its own line.
- * @param {string} head
- * @param {string[]} names
- * @returns {string[]}
- */
-export function wrapList(head, names, width = WIDTH) {
-  const pad = " ".repeat(len(head))
-  const words = names.map((n, i) => (i < names.length - 1 ? `${n},` : n))
-  const out = []
-  let line = head + (words[0] ?? "")
-  for (const w of words.slice(1)) {
-    const next = `${line} ${w}`
-    if (len(next) <= width) line = next
-    else {
-      out.push(line)
-      line = pad + w
-    }
-  }
-  out.push(line)
-  return out
-}
-
-/** Newest SHOW rows of a newest-first list, cut, then "+N". */
-function capped(rows, indent) {
-  return cappedEntries(rows.map((t) => [indent + t]), indent)
-}
-
-/** Newest SHOW entries of a newest-first list, each one or more lines (each cut), then "+N". */
-function cappedEntries(entries, indent) {
-  /** @type {Line[]} */
-  const out = entries.slice(0, SHOW).flatMap((lines) => lines.map((t) => ({ text: cut(t), role: "muted" })))
-  if (entries.length > SHOW) out.push({ text: `${indent}+${entries.length - SHOW}`, role: "muted" })
-  return out
-}
 
 /**
  * Does the install read the shared machine memory tier? A global one does; a project one when its
@@ -167,8 +183,54 @@ export function sameGates(a, b) {
   return key(a) === key(b)
 }
 
+
 /**
- * The panel, in spec order; empty sections absent; null when there is no carrier.
+ * @param {string} text
+ * @param {Role} role
+ * @param {{ bold?: boolean, inverse?: boolean, flex?: "left"|"right" }} [more]
+ */
+const seg = (text, role, more) => ({ text, role, ...more })
+const widthOf = (segs) => segs.reduce((n, s) => n + len(s.text), 0)
+
+/** The row cut or padded (with spaces) to exactly W columns; empty segments dropped. */
+function fit(row, W) {
+  /** @type {Row} */
+  const out = []
+  let room = W
+  for (const s of row) {
+    if (room <= 0) break
+    const n = len(s.text)
+    out.push(n <= room ? s : { ...s, text: cut(s.text, room) })
+    room -= Math.min(n, room)
+  }
+  if (room > 0) out.push(seg(" ".repeat(room), "text"))
+  return out.filter((s) => s.text !== "")
+}
+
+/**
+ * One row exactly W wide: `left`, then `fill` repeated, then `right`. When they do not fit, the
+ * segment marked `flex` gives up columns first ("right": cut from the right; "left": cut from the
+ * left, so a path keeps its file name) while the fill keeps `min` columns; what still overflows is
+ * cut from the row's right end.
+ * @returns {Row}
+ */
+function spread(W, left, right = [], { fill = " ", role = "text", min = 0 } = {}) {
+  const parts = [...left, ...right]
+  const flex = parts.find((s) => s.flex)
+  const over = widthOf(parts) + min - W
+  if (over > 0 && flex) {
+    const keep = Math.max(1, len(flex.text) - over)
+    flex.text = flex.flex === "left" ? cutLeft(flex.text, keep) : cut(flex.text, keep)
+  }
+  for (const s of parts) delete s.flex
+  const gap = W - widthOf(parts)
+  return fit([...left, ...(gap > 0 ? [seg(fill.repeat(gap), role)] : []), ...right], W)
+}
+
+/**
+ * The panel, in the design brief's order (gates, refused, loop, factory, memory); empty sections
+ * absent; null when there is no carrier. Every row is exactly `width` columns: below FOLD one line a
+ * section, above WIDE gates on up to 4 columns and items on one line each.
  * `carrier` is the carrier pinned once per plugin setup (Geneseed's guard reads its carrier once
  * per process): its text, or null when it was absent then. The gates are what the guard holds: the
  * pinned text's, all armed when it was absent. "restart OpenCode to apply" follows when the gates
@@ -177,10 +239,10 @@ export function sameGates(a, b) {
  * @param {Watch} w
  * @param {Record<string, unknown>} snap
  * @param {unknown} messages
- * @param {{ env: Record<string, string|undefined>, sinceMs: number, time?: (ms: number) => string, carrier?: string|null }} o
- * @returns {Line[]|null}
+ * @param {{ env: Record<string, string|undefined>, sinceMs: number, time?: (ms: number) => string, carrier?: string|null, width?: number, glyphs?: Glyphs }} o
+ * @returns {Row[]|null}
  */
-export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carrier }) {
+export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carrier, width = WIDTH, glyphs = GLYPHS.unicode }) {
   const now = carrierText(w, snap)
   const pinnedOne = carrier !== undefined
   const pinned = typeof carrier === "string" ? carrier : null
@@ -189,57 +251,151 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
   const gates = readGates(pinnedOne ? (pinned ?? "") : now, env)
   const restart = pinnedOne && !sameGates(readGates(pinned, env), readGates(now, env))
   if (!gates) return null
-  /** @type {Line[]} */
-  const out = [
-    { text: "Geneseed", role: "text" },
-    { text: " Gates", role: "text" },
-  ]
-  const list = (head, names) => wrapList(head, names).forEach((t) => out.push({ text: t, role: "muted" }))
-  if (gates.guard === "off") out.push({ text: "  guard off", role: "warning" })
-  else if (gates.guard === "warn") out.push({ text: "  warn only", role: "warning" })
-  else {
-    if (gates.on.length) list("  on   ", gates.on)
-    if (gates.off.length) list("  off  ", gates.off)
-    list("  n/a  ", gates.na.map((n) => `${n} (OpenCode 2)`))
-    if (gates.strict) out.push({ text: "  strict consent", role: "muted" })
-  }
-  if (restart) out.push({ text: "  restart OpenCode to apply", role: "muted" })
+
+  const W = width
+  const g = glyphs
+  const fold = W < FOLD
+  const wide = W > WIDE
+  /** @type {Row[]} */
+  const out = []
+  const item = (segs) => out.push(spread(W, segs))
+  const indent = () => seg("  ", "text")
+  const more = (n) => n > SHOW && item([seg(`  +${n - SHOW}`, "muted")])
+  const rule = (glyph, name, role, summary) =>
+    out.push(
+      spread(W, [seg(`${g.rule}${g.rule} `, "muted"), seg(glyph, role), seg(` ${name} `, "text")], [seg(" ", "muted"), seg(summary, role, { flex: "right" })], {
+        fill: g.rule,
+        role: "muted",
+        min: 1,
+      }),
+    )
+  const folded = (glyph, name, role, summary) => out.push(spread(W, [seg(glyph, role), seg(` ${name}`, "text")], [seg(summary, role, { flex: "right" })], { min: 1 }))
 
   const refused = readRefusals(messages)
-  if (refused.length) {
-    out.push({ text: ` Refused  ${refused.length}`, role: "warning" })
-    // One line when it fits; else the rule, then the detail below it, so neither hides the other.
-    const entry = (r0) => {
-      const r = r0.isPath ? { ...r0, detail: shortPath(r0.detail, w.roots[0]) } : r0
-      const one = `  ${r.rule}${r.detail ? `  ${r.detail}` : ""}`
-      if (len(one) <= WIDTH || !r.detail) return [one]
-      // A path too wide for its own line is cut from the left, so the file name always shows.
-      const below = r0.isPath ? cutLeft(r.detail, WIDTH - 4) : r.detail
-      return [`  ${r.rule}`, `    ${below}`]
+  const runsOf = (kind, reg, key, file, tag) =>
+    runPaths(text(snap[reg]), key, file, w.roots, w.platform)
+      .map((f) => {
+        const st = readState(snap[f], tag)
+        const l = runLine(kind, st)
+        return l && { ...l, waiting: st.status === "awaiting" }
+      })
+      .filter((l) => l !== null)
+  const loops = runsOf("loop", w.loopsReg, "loops", "LOOP.md", "loop-state")
+  const factories = runsOf("factory", w.factReg, "factories", "FACTORY.md", "factory-state")
+
+  // Header: one badge, in priority order: guard off, warn, restart, then refusals + waiting runs.
+  const count = refused.length + [...loops, ...factories].filter((r) => r.waiting).length
+  const badge =
+    gates.guard === "off"
+      ? [seg(`${g.stop} off`, "error")]
+      : gates.guard === "warn"
+        ? [seg(`${g.warn} warn`, "warning")]
+        : restart
+          ? [seg(g.restart, "warning")]
+          : count
+            ? [seg(`${g.alert} ${count}`, "warning")]
+            : []
+  out.push(spread(W, [seg("GENESEED", "accent", { bold: true })], badge, { min: 1 }))
+
+  // Gates. Guard off replaces the section with one line, under an inverse error bar.
+  if (gates.guard === "off") {
+    const bar = cut("GUARD OFF · nothing blocks", W)
+    out.push([seg(bar + " ".repeat(W - len(bar)), "error", { inverse: true })])
+    item([seg("  GENESEED_GUARD=off", "muted")])
+  } else {
+    const role = gates.guard === "warn" ? "warning" : "success"
+    const summary = `${gates.on.length} of ${gates.on.length + gates.off.length}`
+    if (fold) folded(g.on, "Gates", role, summary)
+    else {
+      rule(g.on, "gates", role, summary)
+      if (gates.guard === "warn") item([indent(), seg(`${g.warn} warn only · logs, no block`, "warning", { flex: "right" })])
+      // A grid of on gates then off ones; as many columns as fit, up to 2 (4 when wide): a name
+      // never cut, the list wraps instead.
+      const cells = [
+        ...gates.on.map((n) => [seg(g.ok, "success"), seg(` ${n}`, "text")]),
+        ...gates.off.map((n) => [seg(g.off, "error"), seg(` ${n}`, "muted")]),
+      ]
+      const cw = Math.max(...cells.map(widthOf)) + 3
+      const cols = Math.max(1, Math.min(wide ? 4 : 2, Math.floor((W - 2 + 3) / cw)))
+      for (let i = 0; i < cells.length; i += cols) {
+        const line = [indent()]
+        const row = cells.slice(i, i + cols)
+        row.forEach(([glyph, name], j) => line.push(glyph, j < row.length - 1 ? { ...name, text: name.text + " ".repeat(cw - len(glyph.text) - len(name.text)) } : name))
+        item(line)
+      }
+      item([indent(), seg(g.na, "muted"), seg(` ${gates.na.join(", ")} n/a on OpenCode 2`, "muted", { flex: "right" })])
+      if (gates.strict) item([indent(), seg(g.ok, "success"), seg(" strict consent", "muted")])
     }
-    out.push(...cappedEntries(refused.map(entry), "  "))
+  }
+  if (restart && !fold) item([indent(), seg(`${g.restart} restart OpenCode to apply`, "warning", { flex: "right" })])
+
+  // Refused: the rule, then the detail below it (one line when wide). Never the tool's content.
+  if (refused.length) {
+    const n = String(refused.length)
+    if (fold) folded(g.alert, "Refused", "warning", n)
+    else {
+      rule(g.alert, "refused", "warning", n)
+      for (const r of refused.slice(0, SHOW)) {
+        const detail = r.isPath ? shortPath(r.detail, w.roots[0]) : r.detail
+        // A path too wide for its row is cut from the left, so the file name always shows.
+        const d = () => seg(detail, "muted", { flex: r.isPath ? "left" : "right" })
+        if (wide) item([indent(), seg(r.rule, "text"), ...(detail ? [seg("  ", "text"), d()] : [])])
+        else {
+          item([indent(), seg(r.rule, "text", { flex: "right" })])
+          if (detail) item([indent(), d()])
+        }
+      }
+      more(refused.length)
+    }
   }
 
+  // Loops and factories: a rule a run (its step at the right), then the title and its note.
+  const runs = (list, glyph, name, Name) => {
+    for (const r of list.slice(0, SHOW)) {
+      if (fold) {
+        folded(glyph, Name, "accent", r.step)
+        continue
+      }
+      rule(glyph, name, "accent", r.step)
+      const title = seg(r.name, "text", { flex: "right" })
+      const note = r.waiting ? seg(`${g.on} waits for you`, "warning", { bold: true }) : r.note ? seg(r.note, "muted", { flex: "right" }) : null
+      if (wide) out.push(spread(W, [indent(), title], note ? [note] : [], { min: 2 }))
+      else {
+        item([indent(), title])
+        if (note) item([indent(), note])
+      }
+    }
+    more(list.length)
+  }
+  runs(loops, g.loop, "loop", "Loop")
+  runs(factories, g.factory, "factory", "Factory")
+
+  // Memory: what the session used (searches, fact reads), then what was learned; each newest 3.
   const store = storeOf(w, snap, messages)
   const used = readMemoryUse(messages, store).reverse()
   const listing = store ? snap[store] : null
   const fresh = Array.isArray(listing) ? learned(listing, sinceMs) : []
   if (used.length || fresh.length) {
-    out.push({ text: " Memory", role: "text" })
-    const row = (u) => (u.kind === "searched" ? `searched  "${u.label}"  ${u.count ?? 0}` : `read      ${u.label}`)
-    out.push(...capped(used.map(row), "  "))
-    out.push(...capped(fresh.map((f) => `learned   ${f.label}  ${time(f.at)}`), "  "))
+    const summary = fresh.length ? `${used.length} · ${fresh.length} new` : String(used.length)
+    if (fold) folded(g.memory, "Memory", "accent", summary)
+    else {
+      rule(g.memory, "memory", "accent", summary)
+      for (const u of used.slice(0, SHOW)) {
+        if (u.kind === "searched") {
+          const left = [indent(), seg(g.search, "accent"), seg(` "${u.label}"`, "text", { flex: "right" })]
+          const n = String(u.count ?? 0)
+          if (wide) out.push(spread(W, left, [seg(n, "muted")], { min: 2 }))
+          else item([...left, seg(`  ${n}`, "muted")])
+        } else item([indent(), seg(g.memory, "accent"), seg(` ${u.label}`, "text", { flex: "right" })])
+      }
+      more(used.length)
+      for (const f of fresh.slice(0, SHOW)) {
+        const left = [indent(), seg(g.learned, "success"), seg(` ${f.label}`, "text", { flex: "right" })]
+        if (wide) out.push(spread(W, left, [seg(time(f.at), "muted")], { min: 2 }))
+        else item(left)
+      }
+      more(fresh.length)
+    }
   }
-
-  // Two lines a run: the title, then the step and note, so a long title never hides "waits for you".
-  const runs = (kind, reg, key, file, tag, label) => {
-    const entries = runPaths(text(snap[reg]), key, file, w.roots, w.platform)
-      .map((f) => runLine(kind, readState(snap[f], tag)))
-      .filter((l) => l !== null)
-      .map((l) => [` ${label}  ${l.name}`, `   ${l.step}${l.note ? ` · ${l.note}` : ""}`])
-    out.push(...cappedEntries(entries, " "))
-  }
-  runs("loop", w.loopsReg, "loops", "LOOP.md", "loop-state", "Loop")
-  runs("factory", w.factReg, "factories", "FACTORY.md", "factory-state", "Factory")
   return out
 }

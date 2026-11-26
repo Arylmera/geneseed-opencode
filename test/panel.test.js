@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import fs from "node:fs"
-import { cut, wrapList, readsTierOf, runPaths, storeOf, watchList, panelLines } from "../src/panel.js"
+import { cut, readsTierOf, runPaths, storeOf, watchList, panelLines, glyphsFor, GLYPHS, GLYPH_TABLE } from "../src/panel.js"
 
 const refusal = JSON.parse(fs.readFileSync(new URL("./fixtures/refusal.json", import.meta.url), "utf8"))
 const DASH = "—"
@@ -14,13 +14,18 @@ const W = {
   platform: "linux",
 }
 const opts = (o = {}) => ({ env: {}, sinceMs: 100, time: (ms) => `T${ms}`, ...o })
-// Lines as "role|text", so a test names both.
-const shown = (w, snap, messages, o) => {
-  const lines = panelLines(w, snap, messages, opts(o))
-  return lines && lines.map((l) => `${l.role}|${l.text}`)
+const len = (s) => Array.from(s).length
+// Each row as its drawn text: the segments joined.
+const rows = (w, snap, messages, o) => {
+  const out = panelLines(w, snap, messages, opts(o))
+  return out && out.map((r) => r.map((s) => s.text).join(""))
 }
-const HEAD = ["text|Geneseed", "text| Gates"]
-const DEFAULT_GATES = ["muted|  on   secrets, deletion,", "muted|       ownership, external", "muted|  n/a  done (OpenCode 2)"]
+// Each row as "role|text" per segment ("!" bold, "^" inverse), for the tests that name the colours.
+const roles = (w, snap, messages, o) =>
+  panelLines(w, snap, messages, opts(o)).map((r) => r.map((s) => `${s.role}${s.bold ? "!" : ""}${s.inverse ? "^" : ""}|${s.text}`))
+// Spaces to the width: the tests spell the text, this pads it.
+const pad = (s, n = 32) => s + " ".repeat(n - len(s))
+const R = "─"
 
 const msg = (...content) => ({ role: "assistant", content })
 const refused = (i, input) => ({ ...refusal, id: `r${i}`, state: { ...refusal.state, input } })
@@ -32,21 +37,220 @@ const done = (name, input, text, completed) => ({
   time: { completed },
 })
 const state = (tag, obj) => `x\n<!-- ${tag}:begin -->\n${JSON.stringify(obj)}\n<!-- ${tag}:end -->\n`
+const CARRIER = { "/cfg/AGENT.md": "carrier" }
 
-test("cut keeps 30 characters, the last an ellipsis, and never splits a character", () => {
-  assert.equal(cut("a".repeat(30)), "a".repeat(30))
-  assert.equal(cut("a".repeat(31)), "a".repeat(29) + "…")
-  assert.equal(cut("\u{1F600}".repeat(31)), "\u{1F600}".repeat(29) + "…")
+// The design brief's sketch data: two gates off, one refusal, a loop, a waiting factory, memory used
+// twice (a search and a read) and one fact learned.
+const WIN = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
+const FULL_SNAP = {
+  "/cfg/AGENT.md": "Deletion gate: off\nOwnership gate: off\n",
+  "/cfg/memory": [{ name: "repo-facts.md", mtimeMs: 200 }],
+  "/m/loops.json": JSON.stringify({ loops: [{ root: String.raw`C:\Users\g\proj` }] }),
+  "/m/factories.json": JSON.stringify({ factories: [{ root: String.raw`C:\Users\g\proj` }] }),
+  [String.raw`C:\Users\g\proj\LOOP.md`]: state("loop-state", { title: "try-sidebar", node: "plan", iteration: 0, status: "running" }),
+  [String.raw`C:\Users\g\proj\FACTORY.md`]: state("factory-state", { title: "fix-auth", stage: "pr-open", status: "awaiting" }),
+}
+const facts4 = `Facts in /cfg/memory (read <slug>.md there):\na ${DASH} 1\nb ${DASH} 2\nc ${DASH} 3\nd ${DASH} 4`
+const FULL_MSGS = [
+  msg(refused(1, { path: String.raw`C:\Users\g\proj\.ssh\id_rsa`, content: "SECRET" })),
+  msg(done("read", { filePath: "/cfg/memory/host-parity-rule.md" }, "x", 1)),
+  msg(done("memory_search", { query: "host parity" }, facts4, 2)),
+]
+const full = (o) => rows(WIN, FULL_SNAP, FULL_MSGS, o)
+
+test("W=32: the full panel, every rule filled to the width, summaries at the right", () => {
+  assert.deepEqual(full({ width: 32 }), [
+    `GENESEED${" ".repeat(21)}▲ 2`,
+    `── ● gates ${R.repeat(14)} 2 of 4`,
+    pad("  ✓ secrets     ✓ external"),
+    pad("  ○ deletion    ○ ownership"),
+    pad("  – done n/a on OpenCode 2"),
+    `── ▲ refused ${R.repeat(17)} 1`,
+    pad("  Sealed Secrets"),
+    pad(String.raw`  .ssh\id_rsa`),
+    `── ↻ loop ${R.repeat(12)} plan · #0`,
+    pad("  try-sidebar"),
+    `── ⚙ factory ${R.repeat(11)} pr-open`,
+    pad("  fix-auth"),
+    pad("  ● waits for you"),
+    `── ◆ memory ${R.repeat(10)} 2 · 1 new`,
+    pad('  ⌕ "host parity"  4'),
+    pad("  ◆ host-parity-rule"),
+    pad("  + repo-facts"),
+  ])
+  assert.ok(!full({ width: 32 }).join("\n").includes("SECRET"))
 })
 
-test("wrapList breaks at ', ', aligns under the first name, never cuts a name", () => {
-  assert.deepEqual(wrapList("  on   ", ["secrets", "deletion", "ownership", "external"]), [
-    "  on   secrets, deletion,",
-    "       ownership, external",
+test("W=32: roles: accent bold title, warning badge, muted rule, role-coloured glyph and summary", () => {
+  const r = roles(WIN, FULL_SNAP, FULL_MSGS, { width: 32 })
+  assert.deepEqual(r[0], ["accent!|GENESEED", `text|${" ".repeat(21)}`, "warning|▲ 2"])
+  assert.deepEqual(r[1], ["muted|── ", "success|●", "text| gates ", `muted|${R.repeat(14)}`, "muted| ", "success|2 of 4"])
+  assert.deepEqual(r[2].slice(0, 3), ["text|  ", "success|✓", "text| secrets     "])
+  assert.deepEqual(r[3].slice(0, 3), ["text|  ", "error|○", "muted| deletion    "])
+  assert.deepEqual(r[12].slice(0, 2), ["text|  ", "warning!|● waits for you"])
+})
+
+test("W=24: folded, one line a section, the summary at the right", () => {
+  assert.deepEqual(full({ width: 24 }), [
+    `GENESEED${" ".repeat(13)}▲ 2`,
+    `● Gates${" ".repeat(11)}2 of 4`,
+    `▲ Refused${" ".repeat(14)}1`,
+    `↻ Loop${" ".repeat(9)}plan · #0`,
+    `⚙ Factory${" ".repeat(8)}pr-open`,
+    `◆ Memory${" ".repeat(7)}2 · 1 new`,
   ])
-  assert.deepEqual(wrapList("  on   ", ["secrets"]), ["  on   secrets"])
-  const long = "x".repeat(40)
-  assert.deepEqual(wrapList("  on   ", [long, "a"]), [`  on   ${long},`, "       a"])
+})
+
+test("W=44: wide, gates on as many columns as fit (up to 4), items on one line", () => {
+  const p = (s) => pad(s, 44)
+  assert.deepEqual(full({ width: 44 }), [
+    `GENESEED${" ".repeat(33)}▲ 2`,
+    `── ● gates ${R.repeat(26)} 2 of 4`,
+    p("  ✓ secrets     ✓ external    ○ deletion"),
+    p("  ○ ownership"),
+    p("  – done n/a on OpenCode 2"),
+    `── ▲ refused ${R.repeat(29)} 1`,
+    p(String.raw`  Sealed Secrets  .ssh\id_rsa`),
+    `── ↻ loop ${R.repeat(24)} plan · #0`,
+    p("  try-sidebar"),
+    `── ⚙ factory ${R.repeat(23)} pr-open`,
+    `  fix-auth${" ".repeat(19)}● waits for you`,
+    `── ◆ memory ${R.repeat(22)} 2 · 1 new`,
+    `  ⌕ "host parity"${" ".repeat(26)}4`,
+    p("  ◆ host-parity-rule"),
+    `  + repo-facts${" ".repeat(26)}T200`,
+  ])
+  // Four columns once they fit: 2 + 14 * 3 + 11.
+  assert.equal(rows(W, { "/cfg/AGENT.md": "Deletion gate: off\n" }, [], { width: 55 })[2], pad("  ✓ secrets     ✓ ownership   ✓ external    ○ deletion", 55))
+})
+
+test("guard off: the header badge, an inverse error bar, and the gates section is one line", () => {
+  assert.deepEqual(rows(W, CARRIER, [], { width: 32, env: { GENESEED_GUARD: "off" } }), [
+    `GENESEED${" ".repeat(19)}■ off`,
+    pad("GUARD OFF · nothing blocks"),
+    pad("  GENESEED_GUARD=off"),
+  ])
+  const r = roles(W, CARRIER, [], { width: 32, env: { GENESEED_GUARD: "off" } })
+  assert.deepEqual(r[0][2], "error|■ off")
+  assert.deepEqual(r[1], [`error^|${pad("GUARD OFF · nothing blocks")}`])
+  assert.deepEqual(r[2], ["muted|  GENESEED_GUARD=off", `text|${" ".repeat(12)}`])
+})
+
+test("warn: the header badge and one warning line under the gates rule; the grid stays", () => {
+  assert.deepEqual(rows(W, CARRIER, [], { width: 32, env: { GENESEED_GUARD: "warn" } }), [
+    `GENESEED${" ".repeat(18)}◐ warn`,
+    `── ● gates ${R.repeat(14)} 4 of 4`,
+    pad("  ◐ warn only · logs, no block"),
+    pad("  ✓ secrets     ✓ deletion"),
+    pad("  ✓ ownership   ✓ external"),
+    pad("  – done n/a on OpenCode 2"),
+  ])
+})
+
+test("restart: the gates the guard holds, the badge, and the hint under the gates", () => {
+  const first = "Deletion gate: off\n"
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { width: 32, carrier: first }), [
+    `GENESEED${" ".repeat(23)}↺`,
+    `── ● gates ${R.repeat(14)} 3 of 4`,
+    pad("  ✓ secrets     ✓ ownership"),
+    pad("  ✓ external    ○ deletion"),
+    pad("  – done n/a on OpenCode 2"),
+    pad("  ↺ restart OpenCode to apply"),
+  ])
+})
+
+test("a waiting factory and a stopped loop: waits in warning bold, the reason muted, the count badge", () => {
+  const snap = {
+    ...CARRIER,
+    "/m/loops.json": JSON.stringify({ loops: [{ root: "/r" }] }),
+    "/m/factories.json": JSON.stringify({ factories: [{ root: "/r/sub" }] }),
+    "/r/LOOP.md": state("loop-state", { title: "refactor", node: "check", iteration: 3, status: "stopped", reason: "budget spent" }),
+    "/r/sub/FACTORY.md": state("factory-state", { title: "issue-to-pr", stage: "pr-open", status: "awaiting" }),
+  }
+  const out = rows(W, snap, [], { width: 32 })
+  assert.deepEqual([out[0], ...out.slice(5)], [
+    `GENESEED${" ".repeat(21)}▲ 1`,
+    `── ↻ loop ${R.repeat(11)} check · #3`,
+    pad("  refactor"),
+    pad("  budget spent"),
+    `── ⚙ factory ${R.repeat(11)} pr-open`,
+    pad("  issue-to-pr"),
+    pad("  ● waits for you"),
+  ])
+  const r = roles(W, snap, [], { width: 32 })
+  assert.deepEqual(r[7].slice(0, 2), ["text|  ", "muted|budget spent"])
+  assert.deepEqual(r[10].slice(0, 2), ["text|  ", "warning!|● waits for you"])
+})
+
+test("ASCII set at W=32: the same panel, every glyph from the ASCII column", () => {
+  assert.deepEqual(full({ width: 32, glyphs: GLYPHS.ascii }), [
+    `GENESEED${" ".repeat(21)}! 2`,
+    `-- * gates ${"-".repeat(14)} 2 of 4`,
+    pad("  + secrets     + external"),
+    pad("  o deletion    o ownership"),
+    pad("  - done n/a on OpenCode 2"),
+    `-- ! refused ${"-".repeat(17)} 1`,
+    pad("  Sealed Secrets"),
+    pad(String.raw`  .ssh\id_rsa`),
+    `-- L loop ${"-".repeat(12)} plan · #0`,
+    pad("  try-sidebar"),
+    `-- F factory ${"-".repeat(11)} pr-open`,
+    pad("  fix-auth"),
+    pad("  * waits for you"),
+    `-- M memory ${"-".repeat(10)} 2 · 1 new`,
+    pad('  ? "host parity"  4'),
+    pad("  M host-parity-rule"),
+    pad("  + repo-facts"),
+  ])
+})
+
+test("glyphs: one table, two sets; ASCII on options.ascii === true or GENESEED_SIDEBAR_ASCII=1", () => {
+  assert.equal(GLYPH_TABLE.map((r) => r[1]).join(" "), "● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─")
+  assert.equal(GLYPH_TABLE.map((r) => r[2]).join(" "), "* o + - ! # ~ R L F M ? + -")
+  assert.equal(glyphsFor({ ascii: true }, {}), GLYPHS.ascii)
+  assert.equal(glyphsFor({}, { GENESEED_SIDEBAR_ASCII: "1" }), GLYPHS.ascii)
+  assert.equal(glyphsFor(undefined, undefined), GLYPHS.unicode)
+  assert.equal(glyphsFor({ ascii: "true" }, { GENESEED_SIDEBAR_ASCII: "0" }), GLYPHS.unicode)
+  assert.equal(glyphsFor({}, {}), GLYPHS.unicode)
+  // Only "·" (from the run step) is left outside ASCII.
+  for (const t of full({ width: 32, glyphs: glyphsFor({ ascii: true }, {}) })) assert.match(t, /^[\x20-\x7e·]*$/, t)
+})
+
+test("every row is exactly W wide, at 24, 32 and 44, long content included", () => {
+  const long = {
+    ...FULL_SNAP,
+    "/cfg/AGENT.md": "Deletion gate: off\nOwn-branch pass: off\n",
+    [String.raw`C:\Users\g\proj\LOOP.md`]: state("loop-state", { title: "x".repeat(60), node: "a-very-long-node-name", iteration: 12, status: "stopped", reason: "r".repeat(60) }),
+    [String.raw`C:\Users\g\proj\FACTORY.md`]: state("factory-state", { title: "f".repeat(60), stage: "s".repeat(50), status: "awaiting" }),
+  }
+  const msgs = [
+    ...FULL_MSGS,
+    msg(refused(2, { command: "git push --force origin some-very-long-branch-name-that-goes-on" })),
+    msg(refused(3, { path: String.raw`C:\Users\g\AppData\Local\xxverylongfoldername\a_file_with_a_really_long_name_id_rsa` })),
+    msg(refused(4, {})),
+    msg(refused(5, { path: "/p/5" })),
+    msg(done("memory_search", { query: "q".repeat(70) }, facts4, 3)),
+  ]
+  const cases = [
+    [WIN, long, msgs, {}],
+    [W, CARRIER, [], { env: { GENESEED_GUARD: "off" } }],
+    [W, CARRIER, [], { env: { GENESEED_GUARD: "warn" } }],
+    [W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { carrier: "" }],
+    [WIN, FULL_SNAP, FULL_MSGS, { glyphs: GLYPHS.ascii }],
+  ]
+  for (const width of [24, 32, 44]) {
+    for (const [w, snap, messages, o] of cases) {
+      const out = rows(w, snap, messages, { ...o, width })
+      assert.ok(out.length > 1)
+      for (const t of out) assert.equal(len(t), width, `W=${width}: ${JSON.stringify(t)}`)
+    }
+  }
+})
+
+test("cut keeps the width, the last an ellipsis, and never splits a character", () => {
+  assert.equal(cut("a".repeat(30), 30), "a".repeat(30))
+  assert.equal(cut("a".repeat(31), 30), "a".repeat(29) + "…")
+  assert.equal(cut("\u{1F600}".repeat(31), 30), "\u{1F600}".repeat(29) + "…")
 })
 
 test("no carrier: no panel", () => {
@@ -54,49 +258,51 @@ test("no carrier: no panel", () => {
   assert.equal(panelLines(W, { "/h/AGENT.md": null, "/cfg/AGENT.md": null }, [], opts()), null)
 })
 
-test("the default install shows only the gates, wrapped, in order", () => {
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier" }, []), [...HEAD, ...DEFAULT_GATES])
+test("the default install shows only the gates; the width defaults to 32", () => {
+  assert.deepEqual(rows(W, CARRIER, []), [
+    pad("GENESEED"),
+    `── ● gates ${R.repeat(14)} 4 of 4`,
+    pad("  ✓ secrets     ✓ deletion"),
+    pad("  ✓ ownership   ✓ external"),
+    pad("  – done n/a on OpenCode 2"),
+  ])
 })
 
 test("the first readable carrier wins", () => {
   const snap = { "/h/AGENT.md": "Secrets gate: off\n", "/cfg/AGENT.md": "carrier" }
-  assert.deepEqual(shown(W, snap, []).slice(2, 4), ["muted|  on   deletion, ownership,", "muted|       external"])
-})
-
-test("guard off or warn replaces the list", () => {
-  const snap = { "/cfg/AGENT.md": "carrier" }
-  assert.deepEqual(shown(W, snap, [], { env: { GENESEED_GUARD: "off" } }), [...HEAD, "warning|  guard off"])
-  assert.deepEqual(shown(W, snap, [], { env: { GENESEED_GUARD: "warn" } }), [...HEAD, "warning|  warn only"])
+  assert.deepEqual(rows(W, snap, []).slice(1, 3), [`── ● gates ${R.repeat(14)} 3 of 4`, pad("  ✓ deletion    ✓ ownership")])
 })
 
 test("off gates and strict consent", () => {
   const text = "Deletion gate: off\r\nOwnership gate: off\r\nOwn-branch pass: off\r\n"
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": text }, []), [
-    ...HEAD,
-    "muted|  on   secrets, external",
-    "muted|  off  deletion, ownership",
-    "muted|  n/a  done (OpenCode 2)",
-    "muted|  strict consent",
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": text }, []).slice(1), [
+    `── ● gates ${R.repeat(14)} 2 of 4`,
+    pad("  ✓ secrets     ✓ external"),
+    pad("  ○ deletion    ○ ownership"),
+    pad("  – done n/a on OpenCode 2"),
+    pad("  ✓ strict consent"),
   ])
 })
 
-test("refused: count, newest 3, then +N; one line when it fits, else rule then detail", () => {
+test("refused: count, newest 3, then +N; rule, then the detail below it", () => {
   const messages = [1, 2, 3, 4].map((i) => msg(refused(i, { path: `/p/${i}`, content: "SECRET" })))
   messages.push(msg(refused(5, { command: "git push --force origin some-long-branch" })))
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier" }, messages), [
-    ...HEAD,
-    ...DEFAULT_GATES,
-    "warning| Refused  5",
-    "muted|  Sealed Secrets",
-    "muted|    git push --force origin s…",
-    "muted|  Sealed Secrets  /p/4",
-    "muted|  Sealed Secrets  /p/3",
-    "muted|  +2",
+  const out = rows(W, CARRIER, messages)
+  assert.deepEqual(out.slice(5), [
+    `── ▲ refused ${R.repeat(17)} 5`,
+    pad("  Sealed Secrets"),
+    pad("  git push --force origin some-…"),
+    pad("  Sealed Secrets"),
+    pad("  /p/4"),
+    pad("  Sealed Secrets"),
+    pad("  /p/3"),
+    pad("  +2"),
   ])
-  assert.ok(!shown(W, { "/cfg/AGENT.md": "carrier" }, messages).join("\n").includes("SECRET"))
+  assert.equal(out[0], `GENESEED${" ".repeat(21)}▲ 5`)
+  assert.ok(!out.join("\n").includes("SECRET"))
 })
 
-test("memory: used newest first, then learned, each 3 and +N", () => {
+test("memory: used newest first, then learned, each 3 and +N; the summary drops · 0 new", () => {
   const facts = (dir) => `Facts in ${dir} (read <slug>.md there):\nf-1 ${DASH} a\nf-2 ${DASH} b`
   const messages = [
     msg(done("memory_search", { query: "one" }, facts("/cfg/memory"), 1)),
@@ -112,38 +318,35 @@ test("memory: used newest first, then learned, each 3 and +N", () => {
     { name: "c.md", mtimeMs: 400 },
     { name: "d.md", mtimeMs: 500 },
   ]
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier", "/cfg/memory": listing }, messages).slice(5), [
-    "text| Memory",
-    "muted|  read      host-parity-rule",
-    'muted|  searched  "two"  0',
-    "muted|  read      first-fact",
-    "muted|  +1",
-    "muted|  learned   d  T500",
-    "muted|  learned   c  T400",
-    "muted|  learned   b  T300",
-    "muted|  +1",
+  assert.deepEqual(rows(W, { ...CARRIER, "/cfg/memory": listing }, messages).slice(5), [
+    `── ◆ memory ${R.repeat(10)} 4 · 4 new`,
+    pad("  ◆ host-parity-rule"),
+    pad('  ⌕ "two"  0'),
+    pad("  ◆ first-fact"),
+    pad("  +1"),
+    pad("  + d"),
+    pad("  + c"),
+    pad("  + b"),
+    pad("  +1"),
   ])
+  assert.equal(rows(W, CARRIER, messages.slice(0, 1))[5], `── ◆ memory ${R.repeat(18)} 1`)
 })
 
 test("memory: learned alone shows the section", () => {
-  const snap = { "/cfg/AGENT.md": "carrier", "/r/memory": [{ name: "topics/x.md", mtimeMs: 900 }, { name: "n.md", mtimeMs: 900 }] }
-  assert.deepEqual(shown(W, snap, []).slice(5), ["text| Memory", "muted|  learned   n  T900"])
+  const snap = { ...CARRIER, "/r/memory": [{ name: "topics/x.md", mtimeMs: 900 }, { name: "n.md", mtimeMs: 900 }] }
+  assert.deepEqual(rows(W, snap, []).slice(5), [`── ◆ memory ${R.repeat(10)} 0 · 1 new`, pad("  + n")])
 })
 
 test("a store a search result names wins for learned too", () => {
   const messages = [msg(done("memory_search", { query: "q" }, `Facts in /seen (read x):\nf ${DASH} a`, 1))]
-  const snap = {
-    "/cfg/AGENT.md": "carrier",
-    "/cfg/memory": [{ name: "candidate.md", mtimeMs: 900 }],
-    "/seen": [{ name: "observed.md", mtimeMs: 800 }],
-  }
+  const snap = { ...CARRIER, "/cfg/memory": [{ name: "candidate.md", mtimeMs: 900 }], "/seen": [{ name: "observed.md", mtimeMs: 800 }] }
   assert.equal(storeOf(W, snap, messages), "/seen")
   assert.equal(storeOf(W, snap, []), "/cfg/memory")
   assert.equal(storeOf(W, { "/cfg/memory": null }, []), null)
-  assert.deepEqual(shown(W, snap, messages).slice(5), ["text| Memory", 'muted|  searched  "q"  1', "muted|  learned   observed  T800"])
+  assert.deepEqual(rows(W, snap, messages).slice(6), [pad('  ⌕ "q"  1'), pad("  + observed")])
 })
 
-test("loops and factories: two lines each, newest first by start, done hidden, long lines cut", () => {
+test("loops and factories: a rule a run, newest first by start, done hidden, long titles cut", () => {
   const loops = JSON.stringify({
     loops: [
       { root: "/r", initAt: "2026-01-01T00:00:00Z" },
@@ -151,28 +354,30 @@ test("loops and factories: two lines each, newest first by start, done hidden, l
       { root: "/elsewhere", initAt: "2026-03-01T00:00:00Z" },
     ],
   })
-  const factories = JSON.stringify({ factories: [{ root: "/r", started: "2026-01-01T00:00:00Z" }] })
   const snap = {
-    "/cfg/AGENT.md": "carrier",
+    ...CARRIER,
     "/m/loops.json": loops,
-    "/m/factories.json": factories,
     "/r/LOOP.md": state("loop-state", { title: "older", node: "plan", iteration: 1, status: "running" }),
     "/r/sub/LOOP.md": state("loop-state", { title: "refactor", node: "check", iteration: 3, status: "running" }),
     "/elsewhere/LOOP.md": state("loop-state", { title: "nope", node: "x", status: "running" }),
-    "/r/FACTORY.md": state("factory-state", { title: "issue-to-pr", stage: "pr-open", status: "awaiting" }),
   }
-  assert.deepEqual(shown(W, snap, []).slice(5), [
-    "muted| Loop  refactor",
-    "muted|   check · #3",
-    "muted| Loop  older",
-    "muted|   plan · #1",
-    "muted| Factory  issue-to-pr",
-    "muted|   pr-open · waits for you",
+  assert.deepEqual(rows(W, snap, []).slice(5), [
+    `── ↻ loop ${R.repeat(11)} check · #3`,
+    pad("  refactor"),
+    `── ↻ loop ${R.repeat(12)} plan · #1`,
+    pad("  older"),
   ])
   snap["/r/sub/LOOP.md"] = state("loop-state", { title: "refactor-auth", node: "check", status: "done" })
-  snap["/r/FACTORY.md"] = null
-  snap["/r/LOOP.md"] = state("loop-state", { title: "x".repeat(40), node: "plan", status: "stopped", reason: "budget spent" })
-  assert.deepEqual(shown(W, snap, []).slice(5), [`muted| Loop  ${"x".repeat(22)}…`, "muted|   plan · budget spent"])
+  snap["/r/LOOP.md"] = state("loop-state", { title: "x".repeat(40), node: "plan", status: "running" })
+  assert.deepEqual(rows(W, snap, []).slice(5), [`── ↻ loop ${R.repeat(17)} plan`, `  ${"x".repeat(29)}…`])
+})
+
+test("runs: newest 3, then +N", () => {
+  const reg = JSON.stringify({ loops: [1, 2, 3, 4].map((i) => ({ root: `/r${i}`, initAt: `2026-0${i}-01T00:00:00Z` })) })
+  const w = { ...W, roots: ["/r1", "/r2", "/r3", "/r4"] }
+  const snap = { ...CARRIER, "/m/loops.json": reg }
+  for (const i of [1, 2, 3, 4]) snap[`/r${i}/LOOP.md`] = state("loop-state", { title: `l${i}`, node: "n", status: "running" })
+  assert.deepEqual(rows(w, snap, []).slice(5).filter((t) => !t.startsWith("──")), [pad("  l4"), pad("  l3"), pad("  l2"), pad("  +1")])
 })
 
 test("runPaths: rows without a time keep registry order, newest (last) first", () => {
@@ -218,41 +423,55 @@ test("watchList polls the stores only up to the first that exists, plus the name
   assert.deepEqual(stores({ "/a/memory": [] }, named), ["/a/memory", "/seen"])
 })
 
+// Ruling 22: one pin per plugin setup, "absent" (null) included; the hint compares gate results.
+const HINT = pad("  ↺ restart OpenCode to apply")
+const OLD = [
+  pad("GENESEED"),
+  `── ● gates ${R.repeat(14)} 3 of 4`,
+  pad("  ✓ secrets     ✓ ownership"),
+  pad("  ✓ external    ○ deletion"),
+  pad("  – done n/a on OpenCode 2"),
+]
+const withBadge = (r) => [`GENESEED${" ".repeat(23)}↺`, ...r.slice(1)]
 test("the pinned carrier: a later gate change keeps the old gates and says restart", async () => {
   const { carrierText } = await import("../src/panel.js")
   const first = "Deletion gate: off\n"
   assert.equal(carrierText(W, { "/h/AGENT.md": null, "/cfg/AGENT.md": first }), first)
   assert.equal(carrierText(W, {}), null)
-  const OLD = [...HEAD, "muted|  on   secrets, ownership,", "muted|       external", "muted|  off  deletion", "muted|  n/a  done (OpenCode 2)"]
-  // Unchanged: no extra line.
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first }, [], { carrier: first }), OLD)
+  // Unchanged: no hint.
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": first }, [], { carrier: first }), OLD)
   // Changed on disk: the gates the session started with, then the hint.
-  const RESTART = "muted|  restart OpenCode to apply"
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { carrier: first }), [...OLD, RESTART])
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { carrier: first }), [...withBadge(OLD), HINT])
   // Gone on disk: the same; the guard still holds what it read.
-  assert.deepEqual(shown(W, {}, [], { carrier: first }), [...OLD, RESTART])
+  assert.deepEqual(rows(W, {}, [], { carrier: first }), [...withBadge(OLD), HINT])
   // No pinned carrier (the first render): the current one, no hint.
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first }, []), OLD)
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": first }, []), OLD)
 })
 
-// Ruling 22: one pin per plugin setup, "absent" (null) included; the hint compares gate results.
-const RESTART_HINT = "muted|  restart OpenCode to apply"
-const ARMED = [...HEAD, ...DEFAULT_GATES]
 test("pinned absent, carrier present later: the gates the guard holds (all armed), then the hint", () => {
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "Deletion gate: off\n" }, [], { carrier: null }), [...ARMED, RESTART_HINT])
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier" }, [], { carrier: null }), [...ARMED, RESTART_HINT])
+  const ARMED = [
+    `GENESEED${" ".repeat(23)}↺`,
+    `── ● gates ${R.repeat(14)} 4 of 4`,
+    pad("  ✓ secrets     ✓ deletion"),
+    pad("  ✓ ownership   ✓ external"),
+    pad("  – done n/a on OpenCode 2"),
+    HINT,
+  ]
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": "Deletion gate: off\n" }, [], { carrier: null }), ARMED)
+  assert.deepEqual(rows(W, CARRIER, [], { carrier: null }), ARMED)
   // Absent at the pin and still absent: no panel.
-  assert.equal(shown(W, {}, [], { carrier: null }), null)
+  assert.equal(rows(W, {}, [], { carrier: null }), null)
 })
+
 test("a prose-only or line-ending-only rewrite of the carrier shows no hint", () => {
   const first = "# Harness\nDeletion gate: off\nSome rules.\n"
-  const OFF_DELETION = [...HEAD, "muted|  on   secrets, ownership,", "muted|       external", "muted|  off  deletion", "muted|  n/a  done (OpenCode 2)"]
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "# Harness, reworded\nDeletion gate: off\nOther rules.\n" }, [], { carrier: first }), OFF_DELETION)
-  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first.replace(/\n/g, "\r\n") }, [], { carrier: first }), OFF_DELETION)
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": "# Harness, reworded\nDeletion gate: off\nOther rules.\n" }, [], { carrier: first }), OLD)
+  assert.deepEqual(rows(W, { "/cfg/AGENT.md": first.replace(/\n/g, "\r\n") }, [], { carrier: first }), OLD)
 })
+
 test("a gate flipped in the carrier shows the hint", () => {
   const first = "Deletion gate: off\n"
-  const hint = (now) => shown(W, { "/cfg/AGENT.md": now }, [], { carrier: first }).includes(RESTART_HINT)
+  const hint = (now) => rows(W, { "/cfg/AGENT.md": now }, [], { carrier: first }).includes(HINT)
   assert.equal(hint("Deletion gate: off\nSecrets gate: off\n"), true)
   assert.equal(hint(""), true)
   assert.equal(hint("Deletion gate: off\nOwn-branch pass: off\n"), true)
@@ -260,40 +479,41 @@ test("a gate flipped in the carrier shows the hint", () => {
 })
 
 test("refused path detail: relative to the session dir, else the last two segments; a command stays", () => {
-  const row = (w, input) => {
-    const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, input))])
-    return all.slice(all.indexOf("warning| Refused  1") + 1)
+  const detail = (w, input, width = 32) => {
+    const all = rows(w, CARRIER, [msg(refused(1, input))], { width })
+    return all.slice(all.findIndex((t) => t.startsWith("── ▲ refused")) + 1)
   }
   const win = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
   const posix = { ...W, roots: ["/home/g/proj"], platform: "linux" }
+  const two = (d) => [pad("  Sealed Secrets"), pad(`  ${d}`)]
   const cases = [
-    ["win32 under the session dir", win, { path: String.raw`C:\Users\g\proj\.ssh\id_rsa` }, [String.raw`muted|  Sealed Secrets  .ssh\id_rsa`]],
-    ["win32 different case", win, { path: String.raw`c:\users\G\PROJ\.ssh\id_rsa` }, [String.raw`muted|  Sealed Secrets  .ssh\id_rsa`]],
-    ["posix under the session dir", posix, { filePath: "/home/g/proj/.ssh/id_rsa" }, ["muted|  Sealed Secrets  .ssh/id_rsa"]],
-    ["posix is case-sensitive", posix, { path: "/home/g/PROJ/.ssh/id_rsa" }, ["muted|  Sealed Secrets", "muted|    …/.ssh/id_rsa"]],
-    ["win32 outside the session dir", win, { path: String.raw`C:\Users\g\AppData\Local\x\.ssh\id_rsa` }, ["muted|  Sealed Secrets", String.raw`muted|    …\.ssh\id_rsa`]],
-    ["posix outside the session dir", posix, { path: "/etc/ssh/keys/id_rsa" }, ["muted|  Sealed Secrets", "muted|    …/keys/id_rsa"]],
-    ["a sibling sharing the prefix is outside", posix, { path: "/home/g/proj2/a/id_rsa" }, ["muted|  Sealed Secrets  …/a/id_rsa"]],
-    ["a command is left as it is", win, { command: "git push --force origin some-long-branch" }, ["muted|  Sealed Secrets", "muted|    git push --force origin s…"]],
-    ["a command that looks like a path is left as it is", posix, { command: "/home/g/proj/.ssh/id_rsa" }, ["muted|  Sealed Secrets", "muted|    /home/g/proj/.ssh/id_rsa"]],
+    ["win32 under the session dir", win, { path: String.raw`C:\Users\g\proj\.ssh\id_rsa` }, two(String.raw`.ssh\id_rsa`)],
+    ["win32 different case", win, { path: String.raw`c:\users\G\PROJ\.ssh\id_rsa` }, two(String.raw`.ssh\id_rsa`)],
+    ["posix under the session dir", posix, { filePath: "/home/g/proj/.ssh/id_rsa" }, two(".ssh/id_rsa")],
+    ["posix is case-sensitive", posix, { path: "/home/g/PROJ/.ssh/id_rsa" }, two("…/.ssh/id_rsa")],
+    ["win32 outside the session dir", win, { path: String.raw`C:\Users\g\AppData\Local\x\.ssh\id_rsa` }, two(String.raw`…\.ssh\id_rsa`)],
+    ["posix outside the session dir", posix, { path: "/etc/ssh/keys/id_rsa" }, two("…/keys/id_rsa")],
+    ["a sibling sharing the prefix is outside", posix, { path: "/home/g/proj2/a/id_rsa" }, two("…/a/id_rsa")],
+    ["a command is left as it is, cut at the right", win, { command: "git push --force origin some-long-branch" }, two("git push --force origin some-…")],
+    ["a command that looks like a path is left as it is", posix, { command: "/home/g/proj/.ssh/id_rsa" }, two("/home/g/proj/.ssh/id_rsa")],
+    ["no detail: the rule alone", posix, {}, [pad("  Sealed Secrets")]],
   ]
-  for (const [name, w, input, want] of cases) assert.deepEqual(row(w, input), want, name)
+  for (const [name, w, input, want] of cases) assert.deepEqual(detail(w, input), want, name)
+  // Wide: one line, the detail after the rule.
+  assert.deepEqual(detail(posix, { path: "/etc/ssh/keys/id_rsa" }, 44), [pad("  Sealed Secrets  …/keys/id_rsa", 44)])
 })
 
 test("refused path detail: a tail too wide for its row is cut from the left, the file name stays", () => {
   const w = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
-  const rows = (path) => {
-    const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, { path }))])
-    return all.slice(all.indexOf("warning| Refused  1") + 1)
+  const longPath = String.raw`C:\Users\g\AppData\Local\xxverylongfoldername\anotherfile_rsa`
+  const detail = (path) => {
+    const all = rows(w, CARRIER, [msg(refused(1, { path }))], { width: 32 })
+    return all[all.findIndex((t) => t.startsWith("── ▲ refused")) + 2]
   }
-  // The detail line is the tail cut from the left: an ellipsis plus the last 25 columns, 30 with its indent.
-  assert.deepEqual(rows(String.raw`C:\Users\g\AppData\Local\xxverylongfoldername\anotherfile_rsa`), [
-    "muted|  Sealed Secrets",
-    String.raw`muted|    …oldername\anotherfile_rsa`,
-  ])
-  // The file name alone is wider than the row: its own tail shows.
-  assert.deepEqual(rows(String.raw`C:\Users\g\AppData\Local\d\a_file_with_a_really_long_name_id_rsa`), [
-    "muted|  Sealed Secrets",
-    "muted|    …a_really_long_name_id_rsa",
-  ])
+  // An ellipsis plus the last 29 columns: 32 with its indent.
+  assert.equal(detail(longPath), String.raw`  …ongfoldername\anotherfile_rsa`)
+  assert.equal(detail(String.raw`C:\Users\g\AppData\Local\d\a_file_with_a_really_long_name_id_rsa`), "  …ith_a_really_long_name_id_rsa")
+  // Wide: the same cut on the one line, after the rule.
+  const wide = rows(w, CARRIER, [msg(refused(1, { path: longPath }))], { width: 44 })
+  assert.equal(wide[6], String.raw`  Sealed Secrets  …oldername\anotherfile_rsa`)
 })

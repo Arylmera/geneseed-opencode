@@ -1,21 +1,23 @@
 /** @jsxImportSource @opentui/solid */
 // Geneseed panel in OpenCode 2's session sidebar. Read-only: it stats and reads files, and reads the
 // session's loaded messages. This file is Solid wiring and fs adapters only; src/panel.js turns a
-// snapshot and the messages into lines.
+// snapshot and the messages into rows of exactly the panel width, drawn here as they are.
 import fs from "node:fs"
 import os from "node:os"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { Plugin } from "@opencode/plugin/tui"
 import { carrierPaths, cfgDir, findInstall, flavor, machineDir } from "./paths.js"
 import { listFacts, storeCandidates } from "./read/memory.js"
-import { carrierText, panelLines, readsTierOf, watchList } from "./panel.js"
+import { WIDTH, carrierText, glyphsFor, panelLines, readsTierOf, watchList } from "./panel.js"
 import { createPoll } from "./poll.js"
 
 const EVERY = 3000
 
 type Snap = Record<string, unknown>
 // The shapes src/panel.js documents in JSDoc.
-type Line = { text: string; role: "text" | "muted" | "warning" }
+type Role = "text" | "muted" | "success" | "warning" | "error" | "accent"
+type Seg = { text: string; role: Role; bold?: boolean; inverse?: boolean }
+type Row = Seg[]
 type Watch = { carriers: string[]; stores: string[]; loopsReg: string; factReg: string; roots: string[]; platform: string }
 
 const readText = (p: string): string | null => {
@@ -76,7 +78,8 @@ function fsAdapter() {
   }
 }
 
-const keyOf = (lines: Line[] | null) => (lines ? lines.map((l) => `${l.role}:${l.text}`).join("\n") : "")
+const keyOf = (rows: Row[] | null) =>
+  rows ? rows.map((r) => r.map((s) => `${s.role}${s.bold ? "!" : ""}${s.inverse ? "^" : ""}:${s.text}`).join("|")).join("\n") : ""
 
 export default Plugin.define({
   id: "geneseed.sidebar",
@@ -88,10 +91,20 @@ export default Plugin.define({
     let pinned: string | null | undefined
     // Theme roles of @opencode/theme 2.3.2 ResolvedTheme. Read on every draw, so a mode switch
     // applies; optional chaining because the Rust client runs plugins through a compatibility layer.
-    const color = (role: Line["role"]) => {
-      const t = context.theme?.text
-      return role === "warning" ? t?.feedback?.warning?.base : role === "muted" ? t?.muted : t?.base
+    // accent is the hue OpenCode's own prompt uses (@opencode/theme 2.3.2 syntax.js: hue.accent[200]).
+    const color = (role: Role) => {
+      const th = context.theme
+      const t = th?.text
+      if (role === "success" || role === "warning" || role === "error") return t?.feedback?.[role]?.base
+      if (role === "accent") return th?.hue?.accent?.[200]
+      return role === "muted" ? t?.muted : t?.base
     }
+    // An inverse segment is drawn as the page colour on its role's colour, set explicitly rather
+    // than through the inverse attribute, which would swap with a transparent background.
+    const style = (s: Seg) =>
+      s.inverse ? { fg: context.theme?.background?.base, bg: color(s.role), bold: s.bold } : { fg: color(s.role), bold: s.bold }
+    // ASCII glyphs when cli.json gives the plugin { "options": { "ascii": true } } or GENESEED_SIDEBAR_ASCII=1.
+    const glyphs = glyphsFor(context.options, process.env)
     const messagesOf = (id: string): unknown => {
       try {
         return context.data.session.message.list(id) ?? []
@@ -109,6 +122,16 @@ export default Plugin.define({
         const [bump, setBump] = createSignal(0)
         const beat = setInterval(() => setBump((n) => n + 1), EVERY)
         onCleanup(() => clearInterval(beat))
+        // The drawn box's inner width: OpenTUI's Renderable.width, kept by its onSizeChange hook
+        // (both in @opentui/core 0.8.4, which OpenCode 2.3.2 pins, and 0.9.9), and read again on
+        // the beat in case a host never calls the hook. WIDTH until the box has been laid out.
+        const [width, setWidth] = createSignal(WIDTH)
+        const measure = (r: any) => {
+          const n = r?.width
+          if (typeof n === "number" && Number.isFinite(n) && n > 0) setWidth(Math.floor(n))
+        }
+        let box: any
+        createEffect(on(bump, () => measure(box)))
 
         // The session's directory; a session that loads late restarts the poller with its real dir.
         const dir = createMemo(() => {
@@ -165,7 +188,13 @@ export default Plugin.define({
             try {
               const id = input.sessionID
               if (pinned === undefined) pinned = carrierText(w, x)
-              return panelLines(w, x, messages(), { env: process.env, sinceMs: since.get(id) ?? Date.now(), carrier: pinned })
+              return panelLines(w, x, messages(), {
+                env: process.env,
+                sinceMs: since.get(id) ?? Date.now(),
+                carrier: pinned,
+                width: width(),
+                glyphs,
+              })
             } catch {
               return null
             }
@@ -176,8 +205,24 @@ export default Plugin.define({
 
         return (
           <Show when={view()}>
-            <box flexDirection="column">
-              <For each={view() ?? []}>{(l) => <text fg={color(l.role)}>{l.text}</text>}</For>
+            <box
+              flexDirection="column"
+              width="100%"
+              ref={(r: any) => {
+                box = r
+                measure(r)
+              }}
+              onSizeChange={function (this: any) {
+                measure(this)
+              }}
+            >
+              <For each={view() ?? []}>
+                {(row) => (
+                  <text>
+                    <For each={row}>{(s) => <span style={style(s)}>{s.text}</span>}</For>
+                  </text>
+                )}
+              </For>
             </box>
           </Show>
         )
