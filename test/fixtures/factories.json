@@ -1,0 +1,11 @@
+{
+  "factories": [
+    {
+      "root": "<ROOT>",
+      "branch": "master",
+      "factory": "bug-report-to-fix",
+      "title": "Fix crash",
+      "started": "2026-11-26T07:40:45.467Z"
+    }
+  ]
+}
