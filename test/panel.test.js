@@ -216,7 +216,24 @@ test("glyphs: one table, two sets; ASCII on options.ascii === true or GENESEED_S
   for (const t of full({ width: 32, glyphs: glyphsFor({ ascii: true }, {}) })) assert.match(t, /^[\x20-\x7e·]*$/, t)
 })
 
-test("every row is exactly W wide, at 24, 32 and 44, long content included", () => {
+test("the layout boundaries: 27 folds, 28 and 40 are default, 41 is wide with 3 gate columns", () => {
+  const at = (width) => full({ width })
+  // 27: folded, one line a section.
+  assert.equal(at(27)[1], `● Gates${" ".repeat(14)}2 of 4`)
+  assert.equal(at(27).length, 6)
+  // 28: default, the rule and a 2-column grid.
+  assert.deepEqual(at(28).slice(1, 3), [`── ● gates ${R.repeat(10)} 2 of 4`, pad("  ✓ secrets     ✓ external", 28)])
+  // 40: still default: 2 columns, the refused detail on its own line.
+  const d40 = at(40)
+  assert.equal(d40[2], pad("  ✓ secrets     ✓ external", 40))
+  assert.deepEqual(d40.slice(6, 8), [pad("  Sealed Secrets", 40), pad(String.raw`  .ssh\id_rsa`, 40)])
+  // 41: wide: 3 columns, the refused detail on the rule's line.
+  const d41 = at(41)
+  assert.deepEqual(d41.slice(2, 4), [pad("  ✓ secrets     ✓ external    ○ deletion", 41), pad("  ○ ownership", 41)])
+  assert.equal(d41[6], pad(String.raw`  Sealed Secrets  .ssh\id_rsa`, 41))
+})
+
+test("every row is exactly W wide, at 24, 27, 28, 32, 40, 41 and 44, long content included", () => {
   const long = {
     ...FULL_SNAP,
     "/cfg/AGENT.md": "Deletion gate: off\nOwn-branch pass: off\n",
@@ -238,7 +255,7 @@ test("every row is exactly W wide, at 24, 32 and 44, long content included", () 
     [W, { "/cfg/AGENT.md": "Secrets gate: off\n" }, [], { carrier: "" }],
     [WIN, FULL_SNAP, FULL_MSGS, { glyphs: GLYPHS.ascii }],
   ]
-  for (const width of [24, 32, 44]) {
+  for (const width of [24, 27, 28, 32, 40, 41, 44]) {
     for (const [w, snap, messages, o] of cases) {
       const out = rows(w, snap, messages, { ...o, width })
       assert.ok(out.length > 1)
