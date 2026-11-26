@@ -219,8 +219,8 @@ test("ASCII set at W=32: the same panel, every glyph from the ASCII column", () 
 })
 
 test("glyphs: one table, two sets; ASCII on options.ascii === true or GENESEED_SIDEBAR_ASCII=1", () => {
-  assert.equal(GLYPH_TABLE.map((r) => r[1]).join(" "), "● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─ · …")
-  assert.equal(GLYPH_TABLE.map((r) => r[2]).join(" "), "* o + - ! # ~ R L F M ? + - . ~")
+  assert.equal(GLYPH_TABLE.map((r) => r[1]).join(" "), "● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─ · … …")
+  assert.equal(GLYPH_TABLE.map((r) => r[2]).join(" "), "* o + - ! # ~ R L F M ? + - . > <")
   assert.equal(glyphsFor({ ascii: true }, {}), GLYPHS.ascii)
   assert.equal(glyphsFor({}, { GENESEED_SIDEBAR_ASCII: "1" }), GLYPHS.ascii)
   assert.equal(glyphsFor(undefined, undefined), GLYPHS.unicode)
@@ -236,13 +236,19 @@ test("glyphs: one table, two sets; ASCII on options.ascii === true or GENESEED_S
     "/home/g/proj/LOOP.md": state("loop-state", { title: "x".repeat(40), node: "plan", iteration: 2, status: "running" }),
   }
   const cutRows = rows(posix, snap, [msg(refused(1, { path: "/etc/ssh/keys/id_rsa" }))], { width: 32, glyphs: ascii })
-  assert.equal(cutRows[7], pad("  ~/keys/id_rsa"))
-  assert.equal(cutRows[9], `  ${"x".repeat(29)}~`)
+  // A left cut is `<`, a right cut `>`: neither reads as the warn glyph or a home path.
+  assert.equal(cutRows[7], pad("  </keys/id_rsa"))
+  assert.equal(cutRows[9], `  ${"x".repeat(29)}>`)
+  const winPath = String.raw`C:\Users\g\AppData\Local\xxverylongfoldername\anotherfile_rsa`
+  const leftCut = rows(WIN, CARRIER, [msg(refused(1, { path: winPath }))], { width: 32, glyphs: ascii })
+  assert.equal(leftCut[7], String.raw`  <ongfoldername\anotherfile_rsa`)
+  assert.ok([...cutRows, ...leftCut].every((t) => !t.includes("~/") && !t.includes("~\\")))
   const all = [
     ...full({ width: 32, glyphs: ascii }),
     ...full({ width: 24, glyphs: ascii }),
     ...full({ width: 44, glyphs: ascii }),
     ...cutRows,
+    ...leftCut,
     ...rows(W, CARRIER, [], { width: 32, glyphs: ascii, env: { GENESEED_GUARD: "off" } }),
     ...rows(W, CARRIER, [], { width: 20, glyphs: ascii, env: { GENESEED_GUARD: "off" } }),
     ...rows(W, CARRIER, [], { width: 32, glyphs: ascii, env: { GENESEED_GUARD: "warn" } }),

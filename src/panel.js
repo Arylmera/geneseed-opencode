@@ -47,7 +47,9 @@ export const GLYPH_TABLE = [
   ["learned", "+", "+"],
   ["rule", "─", "-"],
   ["sep", "·", "."],
-  ["ellipsis", "…", "~"],
+  // A cut: `>` where the right end was cut off, `<` where the left was (a path's head).
+  ["ellipsis", "…", ">"],
+  ["ellipsisLeft", "…", "<"],
 ]
 
 /** @type {{ unicode: Glyphs, ascii: Glyphs }} */
@@ -240,7 +242,7 @@ function fit(row, W, ell = "…") {
  * The input segments are left as they are: the row is made of copies, without `flex`.
  * @returns {Row}
  */
-export function spread(W, left, right = [], { fill = " ", role = "text", min = 0, ell = "…" } = {}) {
+export function spread(W, left, right = [], { fill = " ", role = "text", min = 0, ell = "…", ellLeft = "…" } = {}) {
   const parts = [...left, ...right]
   const keep = parts.map((s) => len(s.text))
   let over = keep.reduce((n, k) => n + k, 0) + min - W
@@ -253,7 +255,7 @@ export function spread(W, left, right = [], { fill = " ", role = "text", min = 0
     over -= 1
   }
   const out = parts.map(({ flex, ...s }, i) =>
-    keep[i] === len(s.text) ? s : { ...s, text: flex === "left" ? cutLeft(s.text, keep[i], ell) : cut(s.text, keep[i], ell) },
+    keep[i] === len(s.text) ? s : { ...s, text: flex === "left" ? cutLeft(s.text, keep[i], ellLeft) : cut(s.text, keep[i], ell) },
   )
   const l = out.slice(0, left.length)
   const r = out.slice(left.length)
@@ -288,7 +290,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
 
   const W = width
   const g = glyphs
-  const spreadW = (left, right, o = {}) => spread(W, left, right, { ...o, ell: g.ellipsis })
+  const spreadW = (left, right, o = {}) => spread(W, left, right, { ...o, ell: g.ellipsis, ellLeft: g.ellipsisLeft })
   const fold = W < FOLD
   const wide = W > WIDE
   /** @type {Row[]} */
@@ -373,7 +375,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     else {
       rule(g.alert, "refused", "warning", n)
       for (const r of refused.slice(0, SHOW)) {
-        const detail = r.isPath ? shortPath(r.detail, w.roots[0], g.ellipsis) : r.detail
+        const detail = r.isPath ? shortPath(r.detail, w.roots[0], g.ellipsisLeft) : r.detail
         // A path too wide for its row is cut from the left, so the file name always shows.
         const d = () => seg(detail, "muted", { flex: r.isPath ? "left" : "right" })
         if (wide) item([indent(), seg(r.rule, "text"), ...(detail ? [seg("  ", "text"), d()] : [])])
