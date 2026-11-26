@@ -218,7 +218,9 @@ export default Plugin.define({
             >
               <For each={view() ?? []}>
                 {(row) => (
-                  <text>
+                  // wrapMode "none": a row wider than the box (a measure that lags a resize) is
+                  // clipped at the edge instead of wrapping onto a second line.
+                  <text wrapMode="none">
                     <For each={row}>{(s) => <span style={style(s)}>{s.text}</span>}</For>
                   </text>
                 )}
