@@ -88,7 +88,12 @@ export default Plugin.define({
   setup(context) {
     // When the panel first rendered each session: "learned" counts facts changed since then.
     const since = new Map<string, number>()
-    const color = (role: Line["role"]) => (context.theme as unknown as Record<string, unknown>)?.[role] as any
+    // Theme roles of @opencode/theme 2.3.2 ResolvedTheme. Read on every draw, so a mode switch
+    // applies; optional chaining because the Rust client runs plugins through a compatibility layer.
+    const color = (role: Line["role"]) => {
+      const t = context.theme?.text
+      return role === "warning" ? t?.feedback?.warning?.base : role === "muted" ? t?.muted : t?.base
+    }
     const messagesOf = (id: string): unknown => {
       try {
         return context.data.session.message.list(id) ?? []
