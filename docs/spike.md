@@ -28,6 +28,5 @@ truncates the path in its own text, `C:/Users/.../AppDa...p/gs-spike-X/project`,
 installed). `spike/tui.tsx` is written but unrun. To check live: list it in a throwaway
 `cli.json` (`plugins`), open the TUI under a real terminal, confirm the line `spike tick N` in the
 sidebar counts up each second and that `geneseed-spike-dump.json` in the temp dir holds the
-`session.message.list` result. The slot API call shape in the spike follows the spec, not a
-typed source; adjust to the real `@opencode/plugin` types if it fails to load.
+`session.message.list` result. The spike imports `Plugin` from `@opencode/plugin/tui` and its call shapes (`ui.slot({ append: "sidebar.content", render })`, `data.session.message.list`) were checked against the 2.3.2 `.d.ts`; it has not been run.
 Open: does a local `.tsx` follow its signals (not answered).

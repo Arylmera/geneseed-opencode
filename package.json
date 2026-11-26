@@ -11,7 +11,7 @@
     "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "@opencode/plugin": "*"
+    "@opencode/plugin": ">=2.3.2"
   },
   "peerDependencies": {
     "@opentui/core": ">=0.8.4",

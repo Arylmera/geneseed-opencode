@@ -1,19 +1,19 @@
 /** @jsxImportSource @opentui/solid */
 // THROWAWAY SPIKE (Task 1). Not part of the package: proves the sidebar slot renders and follows a
 // signal, and dumps what `data.session.message.list` returns. Delete once the render check is done.
-// The API shape follows docs/specs/2026-11-24-sidebar-design.md; it has NOT been run (no pty here).
+// Call shapes checked against @opencode/plugin 2.3.2 dist/tui/{plugin,context}.d.ts; NOT run (no pty here).
 import { createSignal, onCleanup } from "solid-js"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { Plugin } from "@opencode/plugin"
+import { Plugin } from "@opencode/plugin/tui"
 
 const DUMP = process.env.GENESEED_SPIKE_DUMP ?? path.join(os.tmpdir(), "geneseed-spike-dump.json")
 
 export default Plugin.define({
   id: "geneseed.sidebar.spike",
-  setup(context: any) {
-    context.ui.slot({
+  setup(context) {
+    return context.ui.slot({
       append: "sidebar.content",
       render(props: { sessionID?: string }) {
         const [n, setN] = createSignal(0)
