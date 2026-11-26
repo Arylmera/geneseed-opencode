@@ -48,9 +48,14 @@ export function wrapList(head, names, width = WIDTH) {
 
 /** Newest SHOW rows of a newest-first list, cut, then "+N". */
 function capped(rows, indent) {
+  return cappedEntries(rows.map((t) => [indent + t]), indent)
+}
+
+/** Newest SHOW entries of a newest-first list, each one or more lines (each cut), then "+N". */
+function cappedEntries(entries, indent) {
   /** @type {Line[]} */
-  const out = rows.slice(0, SHOW).map((t) => ({ text: cut(indent + t), role: "muted" }))
-  if (rows.length > SHOW) out.push({ text: `${indent}+${rows.length - SHOW}`, role: "muted" })
+  const out = entries.slice(0, SHOW).flatMap((lines) => lines.map((t) => ({ text: cut(t), role: "muted" })))
+  if (entries.length > SHOW) out.push({ text: `${indent}+${entries.length - SHOW}`, role: "muted" })
   return out
 }
 
@@ -146,7 +151,12 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm }) {
   const refused = readRefusals(messages)
   if (refused.length) {
     out.push({ text: ` Refused  ${refused.length}`, role: "warning" })
-    out.push(...capped(refused.map((r) => (r.detail ? `${r.rule}  ${r.detail}` : r.rule)), "  "))
+    // One line when it fits; else the rule, then the detail below it, so neither hides the other.
+    const entry = (r) => {
+      const one = `  ${r.rule}${r.detail ? `  ${r.detail}` : ""}`
+      return len(one) <= WIDTH || !r.detail ? [one] : [`  ${r.rule}`, `    ${r.detail}`]
+    }
+    out.push(...cappedEntries(refused.map(entry), "  "))
   }
 
   const store = storeOf(w, snap, messages)
@@ -160,12 +170,13 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm }) {
     out.push(...capped(fresh.map((f) => `learned   ${f.label}  ${time(f.at)}`), "  "))
   }
 
+  // Two lines a run: the title, then the step and note, so a long title never hides "waits for you".
   const runs = (kind, reg, key, file, tag, label) => {
-    const rows = runPaths(text(snap[reg]), key, file, w.roots, w.platform)
+    const entries = runPaths(text(snap[reg]), key, file, w.roots, w.platform)
       .map((f) => runLine(kind, readState(snap[f], tag)))
       .filter((l) => l !== null)
-      .map((l) => `${label}  ${l.name}  ${l.step}${l.note ? ` · ${l.note}` : ""}`)
-    out.push(...capped(rows, " "))
+      .map((l) => [` ${label}  ${l.name}`, `   ${l.step}${l.note ? ` · ${l.note}` : ""}`])
+    out.push(...cappedEntries(entries, " "))
   }
   runs("loop", w.loopsReg, "loops", "LOOP.md", "loop-state", "Loop")
   runs("factory", w.factReg, "factories", "FACTORY.md", "factory-state", "Factory")

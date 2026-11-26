@@ -80,14 +80,15 @@ test("off gates and strict consent", () => {
   ])
 })
 
-test("refused: count, newest 3, then +N; a long row is cut", () => {
+test("refused: count, newest 3, then +N; one line when it fits, else rule then detail", () => {
   const messages = [1, 2, 3, 4].map((i) => msg(refused(i, { path: `/p/${i}`, content: "SECRET" })))
   messages.push(msg(refused(5, { command: "git push --force origin some-long-branch" })))
   assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier" }, messages), [
     ...HEAD,
     ...DEFAULT_GATES,
     "warning| Refused  5",
-    "muted|  Sealed Secrets  git push --…",
+    "muted|  Sealed Secrets",
+    "muted|    git push --force origin s…",
     "muted|  Sealed Secrets  /p/4",
     "muted|  Sealed Secrets  /p/3",
     "muted|  +2",
@@ -142,7 +143,7 @@ test("a store a search result names wins for learned too", () => {
   assert.deepEqual(shown(W, snap, messages).slice(5), ["text| Memory", 'muted|  searched  "q"  1', "muted|  learned   observed  T800"])
 })
 
-test("loops and factories: newest first by start, done hidden, long rows cut", () => {
+test("loops and factories: two lines each, newest first by start, done hidden, long lines cut", () => {
   const loops = JSON.stringify({
     loops: [
       { root: "/r", initAt: "2026-01-01T00:00:00Z" },
@@ -161,13 +162,17 @@ test("loops and factories: newest first by start, done hidden, long rows cut", (
     "/r/FACTORY.md": state("factory-state", { title: "issue-to-pr", stage: "pr-open", status: "awaiting" }),
   }
   assert.deepEqual(shown(W, snap, []).slice(5), [
-    "muted| Loop  refactor  check · #3",
-    "muted| Loop  older  plan · #1",
-    "muted| Factory  issue-to-pr  pr-ope…",
+    "muted| Loop  refactor",
+    "muted|   check · #3",
+    "muted| Loop  older",
+    "muted|   plan · #1",
+    "muted| Factory  issue-to-pr",
+    "muted|   pr-open · waits for you",
   ])
   snap["/r/sub/LOOP.md"] = state("loop-state", { title: "refactor-auth", node: "check", status: "done" })
   snap["/r/FACTORY.md"] = null
-  assert.deepEqual(shown(W, snap, []).slice(5), ["muted| Loop  older  plan · #1"])
+  snap["/r/LOOP.md"] = state("loop-state", { title: "x".repeat(40), node: "plan", status: "stopped", reason: "budget spent" })
+  assert.deepEqual(shown(W, snap, []).slice(5), [`muted| Loop  ${"x".repeat(22)}…`, "muted|   plan · budget spent"])
 })
 
 test("runPaths: rows without a time keep registry order, newest (last) first", () => {

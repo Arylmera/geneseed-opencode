@@ -14,12 +14,16 @@ Geneseed
   n/a  done (OpenCode 2)
  Refused  2
   Sealed Secrets  .ssh/id_rsa
+  Deletion Is Deliberate
+    git push -f
  Memory
   searched  "host parity"  4
   read      host-parity-rule
   learned   repo-facts  14:02
- Loop  fix-auth  check · #3
- Factory  issue-to-pr  pr-ope…
+ Loop  refactor-auth
+   check · #3
+ Factory  issue-to-pr
+   pr-open · waits for you
 ```
 
 - **Gates**: the switchable gates in place, read from the Geneseed carrier (`AGENT.md`), in the
@@ -30,8 +34,9 @@ Geneseed
 - **Loop** and **Factory**: runs registered for this repository that are not done.
 
 The panel appears only when a Geneseed carrier is found. A section with nothing to show is left
-out. Lists show the newest 3, then `+N`. A row of gate names wraps at ", "; other lines are cut at
-30 characters. Files are checked every 3 seconds and read again only when they change.
+out. Lists show the newest 3, then `+N`. A row of gate names wraps at ", ". A loop or factory takes
+two lines (title, then step and note); a refusal too when it does not fit on one. Other lines are
+cut at 30 characters. Files are checked every 3 seconds and read again only when they change.
 
 ## Install
 
