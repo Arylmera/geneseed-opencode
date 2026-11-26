@@ -23,30 +23,48 @@ OpenCode plugins are single files with no dependencies. Geneseed never depends o
 - It never copies Geneseed gate logic. A missing gate is fixed in Geneseed.
 
 ## Panel
-    Geneseed
-     Gates
-      on   secrets, external
-      off  deletion, ownership
-      n/a  done (OpenCode 2)
-     Refused  2
-      Sealed Secrets  .ssh/id_rsa
-      Deletion Is Deliberate
-        git push -f
-     Memory
-      read      host-parity-rule
-      searched  "host parity"  4
-      learned   repo-facts  14:02
-     Loop  refactor-auth
-       check · #3
-     Factory  issue-to-pr
-       pr-open · waits for you
-A row that lists gate names is never cut: it wraps at ", " to 30 columns, continuation lines
-aligned under the first name. A loop or factory takes two lines: its title, then its step and note,
-so the stage and "waits for you" are never cut away by a long title. A refusal is one line when it
-fits in 30 columns, else the rule, then the detail indented below it. Every other line is cut at 30
-characters with an ellipsis (the mock above is what src/panel.js renders). Lists show the newest 3,
-then "+N". The
-panel never changes the order of OpenCode's sections; it appends to `sidebar.content`.
+    GENESEED                     ▲ 2
+    ── ● gates ────────────── 2 of 4
+      ✓ secrets     ✓ external
+      ○ deletion    ○ ownership
+      – done n/a on OpenCode 2
+    ── ▲ refused ───────────────── 1
+      Sealed Secrets
+      .ssh/id_rsa
+    ── ↻ loop ──────────── plan · #0
+      try-sidebar
+    ── ⚙ factory ─────────── pr-open
+      fix-auth
+      ● waits for you
+    ── ◆ memory ────────── 2 · 1 new
+      ⌕ "host parity"  4
+      ◆ host-parity-rule
+      + repo-facts
+
+Default width (32 columns), as src/panel.js renders it. src/panel.js owns every row: it takes the
+inner width W and a glyph set and returns rows of segments (text, theme role, bold, inverse) whose
+texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn box's width
+(OpenTUI `onSizeChange` / `width`), 32 until it is laid out.
+- Header: GENESEED (accent, bold) and one badge at the right, in priority order: `■ off` (error),
+  `◐ warn`, `↺` (restart due), `▲ <n>` (refusals plus runs that wait); nothing when quiet.
+- Each section opens with `── <glyph> <name> `, `─` filling the width, then ` <summary>`. Order:
+  gates (`<on> of <switchable>`), refused (`<n>`), one per loop run (`<step> · #<i>`), one per
+  factory run (`<stage>`), memory (`<used> · <learned> new`, `· 0 new` dropped).
+- Gates: a grid of `✓ name` then `○ name`, as many columns as fit (2, or up to 4 when wide); a name
+  is never cut. Then `– done n/a on OpenCode 2`, `✓ strict consent` when set, and
+  `↺ restart OpenCode to apply` when the gates changed since the pin.
+- Guard off: an inverse error bar `GUARD OFF · nothing blocks` under the header, and the gates
+  section is one line `GENESEED_GUARD=off`. Warn: `◐ warn only · logs, no block` under the rule.
+- Refused: the rule name, then the path or command below it. A path is relative to DIR when under
+  it, else its last two segments, cut from the left when still too wide; a command is cut at the
+  right. Tool input content is never shown.
+- Runs: the title, then `● waits for you` (warning, bold) or the stop reason (muted).
+- Memory: `⌕ "query"  <count>`, `◆ slug` for a fact read, `+ slug` for one learned.
+- W < 28: one line a section, `<glyph> <Name>` left and the summary right. W > 40: items on one
+  line each, label left and detail or summary right (a learned fact shows its time).
+- Lists show the newest 3, then "+N". ASCII glyphs (`* o + - ! # ~ R L F M ? + -`) when the plugin
+  option `ascii` is true or GENESEED_SIDEBAR_ASCII=1. The panel never changes the order of
+  OpenCode's sections; it appends to `sidebar.content`.
 
 ## Sections and sources
 CFG = $OPENCODE_CONFIG_DIR, else $XDG_CONFIG_HOME/opencode, else ~/.config/opencode.
@@ -63,7 +81,7 @@ G1 Gates in place — always shown. Source: the carrier, first readable of
    Secrets, Deletion, Ownership, External: on unless the line `<Name> gate: off` is there.
    Done: n/a, OpenCode 2 turns are not judged. `Own-branch pass: off` adds "strict consent".
    Test note is advisory and is not listed. Excluding a doctrine drops its text, not this gate.
-   `GENESEED_GUARD` off or warn replaces the list: "guard off" / "warn only", read from the TUI
+   `GENESEED_GUARD` off replaces the list ("GUARD OFF"), warn adds "warn only", read from the TUI
    process (a remote server may differ). No carrier: the whole panel is hidden.
 G2 Refused — this session, from MSGS. A `tool` part in state `error` whose error.message, trimmed,
    starts with `No tool named "BLOCKED, not a missing tool:`. Rule = the parenthesised name that

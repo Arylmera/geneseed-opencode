@@ -7,31 +7,32 @@ spawns and sends nothing.
 ## What it shows
 
 ```
-Geneseed
- Gates
-  on   secrets, external
-  off  deletion, ownership
-  n/a  done (OpenCode 2)
- Refused  2
-  Sealed Secrets  .ssh/id_rsa
-  Deletion Is Deliberate
-    git push -f
- Memory
-  searched  "host parity"  4
-  read      host-parity-rule
-  learned   repo-facts  14:02
- Loop  refactor-auth
-   check · #3
- Factory  issue-to-pr
-   pr-open · waits for you
+GENESEED                     ▲ 2
+── ● gates ────────────── 2 of 4
+  ✓ secrets     ✓ external
+  ○ deletion    ○ ownership
+  – done n/a on OpenCode 2
+── ▲ refused ───────────────── 1
+  Sealed Secrets
+  .ssh/id_rsa
+── ↻ loop ──────────── plan · #0
+  try-sidebar
+── ⚙ factory ─────────── pr-open
+  fix-auth
+  ● waits for you
+── ◆ memory ────────── 2 · 1 new
+  ⌕ "host parity"  4
+  ◆ host-parity-rule
+  + repo-facts
 ```
 
 - **Gates**: the switchable gates in place, read from the Geneseed carrier (`AGENT.md`), in the
   order Geneseed's guard looks for it. `GENESEED_GUARD` set to `off`, `0`, `false` or `no` shows
-  "guard off", and `warn` shows "warn only", parsed as the guard does (any case, no trimming).
+  "GUARD OFF · nothing blocks" in place of the gates, and `warn` adds "warn only · logs, no
+  block", parsed as the guard does (any case, no trimming).
   The carrier is read once when OpenCode starts the plugin, as the guard reads it once at load (an
   absent carrier counts as every gate armed). When the gates in it change later, or it appears or
-  goes, the gates stay as they were and "restart OpenCode to apply" is added; a rewrite that leaves
+  goes, the gates stay as they were and "↺ restart OpenCode to apply" is added; a rewrite that leaves
   the gates as they were adds nothing.
 - **Refused**: tool calls the guard refused in this session, with the rule and the path or command.
 - **Memory**: two lists, each the newest 3, then `+N`. First what the session used:
@@ -41,9 +42,20 @@ Geneseed
 - **Loop** and **Factory**: runs registered for this repository that are not done.
 
 The panel appears only when a Geneseed carrier is found. A section with nothing to show is left
-out. Lists show the newest 3, then `+N`. A row of gate names wraps at ", ". A loop or factory takes
-two lines (title, then step and note); a refusal too when it does not fit on one. Other lines are
-cut at 30 characters. Files are checked every 3 seconds and read again only when they change.
+out. Each section opens with a rule line that carries its summary at the right: gates on of
+switchable, the refusal count, a run's step or stage, memory used and learned. The header badge
+shows, in this order, `■ off` (guard off, with a `GUARD OFF` bar), `◐ warn`, `↺` (restart due), or
+`▲ <n>`: refusals plus runs that wait for you. Lists show the newest 3, then `+N`.
+
+Every row fits the sidebar's width exactly (measured from the drawn box; 32 until it is laid out).
+Below 28 columns each section folds to one line; above 40, gates go on up to four columns and each
+item on one line. Paths are cut from the left so the file name shows; other text is cut from the
+right; gate names are never cut, the grid wraps instead. Files are checked every 3 seconds and read
+again only when they change.
+
+For terminals without these glyphs, list the plugin in `cli.json` as
+`{ "package": "C:/path/to/opencode-geneseed", "options": { "ascii": true } }`, or set
+`GENESEED_SIDEBAR_ASCII=1`: `● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─` become `* o + - ! # ~ R L F M ? + -`.
 
 ## Install
 
