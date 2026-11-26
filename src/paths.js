@@ -64,7 +64,8 @@ export function findInstall(dir, cfg, exists) {
 
 /**
  * Carrier candidates, in the order of CARRIER_DIRS in geneseed-guard.js: GENESEED_HARNESS, then the
- * plugin dir's parent (cfg for a global install, root/.opencode for a project one), then its grandparent (root).
+ * plugin dir's parent (cfg for a global install, root/.opencode for a project one), then its grandparent
+ * (the parent of cfg, or root).
  * @param {Record<string,string|undefined>} env
  * @param {{ kind: "project"|"global", root: string }} install
  * @param {string} cfg
@@ -73,8 +74,10 @@ export function findInstall(dir, cfg, exists) {
 export function carrierPaths(env, install, cfg) {
   const out = []
   if (env.GENESEED_HARNESS) out.push(flavor(env.GENESEED_HARNESS).join(env.GENESEED_HARNESS, "AGENT.md"))
-  if (install.kind === "global") out.push(flavor(cfg).join(cfg, "AGENT.md"))
-  else {
+  if (install.kind === "global") {
+    const p = flavor(cfg)
+    out.push(p.join(cfg, "AGENT.md"), p.join(p.dirname(cfg), "AGENT.md"))
+  } else {
     const p = flavor(install.root)
     out.push(p.join(install.root, ".opencode", "AGENT.md"), p.join(install.root, "AGENT.md"))
   }

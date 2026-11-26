@@ -43,7 +43,7 @@ test("contract: GATE_SWITCHES markers match the reader", (t) => {
   assert.ok(markers.length >= 7, `only ${markers.length} markers`)
   assert.deepEqual([...markers].sort(), [...KNOWN_MARKERS, "Test note"].sort())
 })
-test("marker must start the line", () => {
+test("marker must start the line, even when the line ends in off", () => {
   assert.deepEqual(readGates("text Deletion gate: off here", {}).off, [])
   assert.deepEqual(readGates("text Deletion gate: off", {}).off, [])
   assert.deepEqual(readGates("Deletion gate: off here", {}).off, [])

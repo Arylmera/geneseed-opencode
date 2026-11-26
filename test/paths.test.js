@@ -42,8 +42,8 @@ test("findInstall: windows paths walk to the drive root", () => {
 })
 
 test("carrierPaths: GENESEED_HARNESS first, then global cfg or project root", () => {
-  assert.deepEqual(carrierPaths({ GENESEED_HARNESS: "/h" }, { kind: "global", root: "/cfg" }, "/cfg"), ["/h/AGENT.md", "/cfg/AGENT.md"])
-  assert.deepEqual(carrierPaths({}, { kind: "global", root: "/cfg" }, "/cfg"), ["/cfg/AGENT.md"])
+  assert.deepEqual(carrierPaths({ GENESEED_HARNESS: "/h" }, { kind: "global", root: "/cfg" }, "/cfg"), ["/h/AGENT.md", "/cfg/AGENT.md", "/AGENT.md"])
+  assert.deepEqual(carrierPaths({}, { kind: "global", root: "/c/opencode" }, "/c/opencode"), ["/c/opencode/AGENT.md", "/c/AGENT.md"])
   assert.deepEqual(carrierPaths({}, { kind: "project", root: "/r" }, "/cfg"), ["/r/.opencode/AGENT.md", "/r/AGENT.md"])
   assert.deepEqual(carrierPaths({ GENESEED_HARNESS: "/h" }, { kind: "project", root: "/r" }, "/cfg"), ["/h/AGENT.md", "/r/.opencode/AGENT.md", "/r/AGENT.md"])
 })
