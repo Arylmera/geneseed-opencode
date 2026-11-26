@@ -1,0 +1,22 @@
+{
+  "type": "tool",
+  "id": "call_canary_1",
+  "name": "write",
+  "executed": false,
+  "state": {
+    "status": "error",
+    "input": {
+      "path": "<TMP>/project/.ssh/id_rsa",
+      "content": "not a key"
+    },
+    "error": {
+      "type": "tool.execution",
+      "message": "No tool named \"BLOCKED, not a missing tool: [geneseed-guard] blocked: Tell the user this, word for word: This edit writes to \"<TMP>/project/.ssh/id_rsa\", a file that holds a secret or key.\nIt was refused because a secret or key file is never for the agent to write. (Sealed Secrets)\nYou can make this change yourself, outside the agent.\nAgent: leave this file alone.\" is currently available. Please use a tool from the available tool list."
+    }
+  },
+  "time": {
+    "created": 1795677825693,
+    "ran": 1795677825696,
+    "completed": 1795677825709
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "opencode-geneseed",
+  "version": "0.0.1",
+  "description": "OpenCode 2 TUI plugin: Geneseed harness information in the sidebar.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arylmera/geneseed-opencode.git"
+  },
+  "homepage": "https://github.com/Arylmera/geneseed-opencode#readme",
+  "bugs": {
+    "url": "https://github.com/Arylmera/geneseed-opencode/issues"
+  },
+  "exports": {
+    "./tui": "./src/tui.tsx"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@opencode/plugin": ">=2.3.2"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.8.4",
+    "@opentui/solid": ">=0.8.4",
+    "solid-js": ">=1.9.0"
+  }
+}

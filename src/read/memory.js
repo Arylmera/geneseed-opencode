@@ -1,0 +1,187 @@
+import path from "node:path"
+import { flavor } from "../paths.js"
+
+const DASH = " \u2014 "
+// The two heads of geneseed-learn.js memorySearchText: `Facts in <dir> (read ...` and
+// `No fact in <dir> matches "<query>".`
+export const FACTS_HEAD = "Facts in "
+export const NO_FACT_HEAD = "No fact in "
+const INDEXES = new Set(["memory.md", "readme.md"])
+const FOLDERS = new Set(["topics", "archive", "agents"])
+
+const isObj = (v) => v !== null && typeof v === "object"
+
+/**
+ * Memory folders in the order of resolveMemoryDir (geneseed-learn.js). The caller tests which exists.
+ * @param {Record<string,string|undefined>} env
+ * @param {{ kind: "project"|"global", root: string }} install
+ * @param {string} cfg
+ * @param {string} machine
+ * @param {string} cwd
+ * @param {boolean} readsTier the install reads the shared machine tier
+ * @returns {string[]}
+ */
+export function storeCandidates(env, install, cfg, machine, cwd, readsTier) {
+  const out = []
+  if (env.GENESEED_MEMORY) out.push(env.GENESEED_MEMORY)
+  if (env.GENESEED_HARNESS) out.push(flavor(env.GENESEED_HARNESS).join(env.GENESEED_HARNESS, "memory"))
+  if (readsTier) out.push(flavor(machine).join(machine, "memory"))
+  const dir = install.kind === "global" ? cfg : flavor(install.root).join(install.root, ".opencode")
+  out.push(flavor(dir).join(dir, "memory"))
+  const p = flavor(cwd)
+  out.push(p.join(cwd, "memory"), p.join(cwd, "Harness", "memory"))
+  return out
+}
+
+// "/"-separated, no trailing slash, lower-cased for a Windows path.
+function norm(p) {
+  const s = String(p).replace(/\\/g, "/").replace(/\/+$/, "")
+  return flavor(p) === path.win32 ? s.toLowerCase() : s
+}
+
+/** Store-relative path -> slug when it names a fact file, else null. */
+function slugOf(rel) {
+  const parts = rel.split("/").filter(Boolean)
+  const base = parts[parts.length - 1]
+  if (!base || !/\.md$/i.test(base) || INDEXES.has(base.toLowerCase())) return null
+  if (parts.slice(0, -1).some((d) => FOLDERS.has(d.toLowerCase()))) return null
+  return base.slice(0, -3)
+}
+
+function textOf(state) {
+  if (!Array.isArray(state.content)) return ""
+  return state.content
+    .filter((c) => isObj(c) && c.type === "text" && typeof c.text === "string")
+    .map((c) => c.text)
+    .join("\n")
+}
+
+function countOf(text) {
+  const lines = text.split(/\r?\n/)
+  const head = lines.findIndex((l) => l.startsWith(FACTS_HEAD))
+  if (head < 0) return 0
+  return lines.slice(head + 1).filter((l) => l.includes(DASH)).length
+}
+
+function namedDir(text) {
+  const m = /^(?:Facts in (.+?) \(read |No fact in (.+?) matches ")/m.exec(text)
+  return m ? m[1] || m[2] : null
+}
+
+/**
+ * The store the last completed memory_search result names ("Facts in <dir>"), or null. It is the
+ * store observed, so it wins over the resolved candidates.
+ * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
+ * @returns {string|null}
+ */
+export function storeNamed(messages) {
+  let dir = null
+  if (!Array.isArray(messages)) return null
+  for (const message of messages) {
+    if (!isObj(message) || !Array.isArray(message.content)) continue
+    for (const part of message.content) {
+      if (!isObj(part) || part.type !== "tool" || part.name !== "memory_search") continue
+      if (!isObj(part.state) || part.state.status !== "completed") continue
+      dir = namedDir(textOf(part.state)) ?? dir
+    }
+  }
+  return dir
+}
+
+/**
+ * Memory the session used, in message order: searches and reads of fact files.
+ * The store is resolved once over the whole message list: the last dir a search result names wins
+ * over the `store` argument, for every read.
+ * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
+ * @param {string|null} store
+ * @returns {{ kind: "searched"|"read", label: string, count?: number }[]}
+ */
+export function readMemoryUse(messages, store) {
+  const calls = []
+  if (!Array.isArray(messages)) return []
+  let root = typeof store === "string" && store ? store : null
+  for (const message of messages) {
+    if (!isObj(message) || !Array.isArray(message.content)) continue
+    for (const part of message.content) {
+      if (!isObj(part) || part.type !== "tool" || !isObj(part.state) || part.state.status !== "completed") continue
+      const input = isObj(part.state.input) ? part.state.input : {}
+      if (part.name === "memory_search") {
+        const text = textOf(part.state)
+        const dir = namedDir(text)
+        if (dir) root = dir
+        calls.push({ kind: "searched", label: String(input.query ?? ""), count: countOf(text) })
+      } else if (part.name === "read") {
+        const file = typeof input.filePath === "string" ? input.filePath : input.path
+        if (typeof file === "string" && file) calls.push({ kind: "read", file })
+      }
+    }
+  }
+  const rows = []
+  for (const c of calls) {
+    if (c.kind === "searched") {
+      rows.push(c)
+      continue
+    }
+    if (!root) continue
+    const base = norm(root) + "/"
+    const f = norm(c.file)
+    if (!f.startsWith(base)) continue
+    const slug = slugOf(c.file.replace(/\\/g, "/").slice(base.length))
+    if (slug) rows.push({ kind: "read", label: slug })
+  }
+  return rows
+}
+
+/**
+ * Fact files created or changed since sinceMs, newest first.
+ * @param {{ name: string, mtimeMs: number }[]} entries store-relative names
+ * @param {number} sinceMs
+ * @returns {{ kind: "learned", label: string, at: number }[]}
+ */
+export function learned(entries, sinceMs) {
+  if (!Array.isArray(entries)) return []
+  const rows = []
+  for (const e of entries) {
+    if (!isObj(e) || typeof e.name !== "string" || typeof e.mtimeMs !== "number") continue
+    if (e.mtimeMs < sinceMs) continue
+    const slug = slugOf(e.name.replace(/\\/g, "/"))
+    if (slug) rows.push({ kind: "learned", label: slug, at: e.mtimeMs })
+  }
+  return rows.sort((a, b) => b.at - a.at)
+}
+
+/**
+ * A store's fact files with their mtimes, to depth 2 (`<store>/x.md`, `<store>/<dir>/x.md`), never
+ * inside archive/, agents/ or topics/. Names are store-relative, "/"-separated. A folder that cannot
+ * be listed and a file that cannot be stat'd are left out. Pure: `io` does the disk.
+ * @param {string} dir
+ * @param {{ list: (d: string) => { name: string, dir: boolean }[], mtime: (p: string) => number }} io
+ * @param {number} [depth]
+ * @returns {{ name: string, mtimeMs: number }[]}
+ */
+export function listFacts(dir, io, depth = 2) {
+  const p = flavor(dir)
+  const out = []
+  const walk = (abs, rel, level) => {
+    let entries
+    try {
+      entries = io.list(abs)
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const name = rel ? `${rel}/${e.name}` : e.name
+      if (e.dir) {
+        if (level < depth && !FOLDERS.has(e.name.toLowerCase())) walk(p.join(abs, e.name), name, level + 1)
+      } else if (/\.md$/i.test(e.name)) {
+        try {
+          out.push({ name, mtimeMs: io.mtime(p.join(abs, e.name)) })
+        } catch {
+          // Deleted while listing: dropped.
+        }
+      }
+    }
+  }
+  walk(dir, "", 1)
+  return out
+}

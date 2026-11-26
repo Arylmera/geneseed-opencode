@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# Recorded Geneseed CLI output: kept byte for byte (CRLF), as the real CLI wrote it.
+test/fixtures/*.md -text

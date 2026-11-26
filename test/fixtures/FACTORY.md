@@ -1,0 +1,249 @@
+# Factory — Fix crash
+
+bug
+
+The block below belongs to the engine: `geneseed factory` rewrites it on every action.
+
+<!-- factory-state:begin -->
+```json
+{
+  "v": 1,
+  "title": "Fix crash",
+  "requirement": "bug",
+  "input": "pasted",
+  "factory": {
+    "name": "bug-report-to-fix",
+    "description": "Take one bug report, fix it with the bugfix loop, run the base branch's checks and a review panel, play the holdout scenarios it never saw, open the pull request and wait for green CI; a failed check, review or scenario, or red CI, sends the fix back to the loop, twice at most each. At the end it asks you once whether to merge.",
+    "category": "development",
+    "rules": [
+      "Never merge without the user's yes, asked once at the end of the run; enable auto-merge only as the user's standing auto-merge rule allows.",
+      "Push only this worktree's own branch."
+    ],
+    "stages": [
+      "intake",
+      "holdout-write",
+      "loop:bugfix",
+      "checks",
+      "review-panel",
+      "holdout",
+      "pr-open",
+      "merge-gate",
+      "retro"
+    ],
+    "start": "intake",
+    "edges": [
+      {
+        "from": "intake",
+        "on": "pass",
+        "to": "holdout-write"
+      },
+      {
+        "from": "intake",
+        "on": "fail",
+        "to": "$stop"
+      },
+      {
+        "from": "intake",
+        "on": "needs-info",
+        "to": "holdout-write"
+      },
+      {
+        "from": "intake",
+        "on": "reject",
+        "to": "$stop"
+      },
+      {
+        "from": "holdout-write",
+        "on": "pass",
+        "to": "loop:bugfix"
+      },
+      {
+        "from": "holdout-write",
+        "on": "fail",
+        "to": "$stop"
+      },
+      {
+        "from": "loop:bugfix",
+        "on": "pass",
+        "to": "checks"
+      },
+      {
+        "from": "loop:bugfix",
+        "on": "fail",
+        "to": "$stop"
+      },
+      {
+        "from": "checks",
+        "on": "pass",
+        "to": "review-panel"
+      },
+      {
+        "from": "checks",
+        "on": "fail",
+        "to": "loop:bugfix"
+      },
+      {
+        "from": "checks",
+        "on": "error",
+        "to": "review-panel"
+      },
+      {
+        "from": "checks",
+        "on": "none",
+        "to": "checks"
+      },
+      {
+        "from": "review-panel",
+        "on": "pass",
+        "to": "holdout"
+      },
+      {
+        "from": "review-panel",
+        "on": "fail",
+        "to": "loop:bugfix"
+      },
+      {
+        "from": "holdout",
+        "on": "pass",
+        "to": "pr-open"
+      },
+      {
+        "from": "holdout",
+        "on": "fail",
+        "to": "loop:bugfix"
+      },
+      {
+        "from": "holdout",
+        "on": "error",
+        "to": "$stop"
+      },
+      {
+        "from": "pr-open",
+        "on": "pass",
+        "to": "merge-gate"
+      },
+      {
+        "from": "pr-open",
+        "on": "fail",
+        "to": "$stop"
+      },
+      {
+        "from": "merge-gate",
+        "on": "pass",
+        "to": "retro"
+      },
+      {
+        "from": "merge-gate",
+        "on": "fail",
+        "to": "loop:bugfix"
+      },
+      {
+        "from": "merge-gate",
+        "on": "none",
+        "to": "retro"
+      },
+      {
+        "from": "retro",
+        "on": "pass",
+        "to": "$close"
+      }
+    ],
+    "cycles": [
+      {
+        "name": "done-list",
+        "nodes": [
+          "checks"
+        ],
+        "max": 1
+      },
+      {
+        "name": "checks",
+        "nodes": [
+          "loop:bugfix",
+          "checks"
+        ],
+        "max": 2
+      },
+      {
+        "name": "review",
+        "nodes": [
+          "loop:bugfix",
+          "checks",
+          "review-panel"
+        ],
+        "max": 2
+      },
+      {
+        "name": "holdout",
+        "nodes": [
+          "loop:bugfix",
+          "checks",
+          "review-panel",
+          "holdout"
+        ],
+        "max": 2
+      },
+      {
+        "name": "ci",
+        "nodes": [
+          "loop:bugfix",
+          "checks",
+          "review-panel",
+          "holdout",
+          "pr-open",
+          "merge-gate"
+        ],
+        "max": 2
+      }
+    ],
+    "review": {
+      "seats": {
+        "small": [
+          "reviewer"
+        ],
+        "medium": [
+          "reviewer",
+          "tester"
+        ],
+        "large": [
+          "reviewer",
+          "tester",
+          "steward"
+        ],
+        "areas": {
+          "security": [
+            "security"
+          ],
+          "performance": [
+            "performance"
+          ],
+          "ui": [
+            "user-advocate"
+          ],
+          "data": [
+            "security"
+          ]
+        }
+      }
+    }
+  },
+  "stage": "intake",
+  "status": "running",
+  "awaiting": null,
+  "reason": null,
+  "counters": {},
+  "transitions": 0,
+  "runTransitions": 0,
+  "runCeiling": 60,
+  "taskHigh": 0,
+  "taskCount": null,
+  "lane": null,
+  "tasks": null,
+  "carry": null,
+  "launched": null,
+  "history": [],
+  "gateAmends": {},
+  "started": "2026-11-26T07:40:45.465Z"
+}
+```
+<!-- factory-state:end -->
