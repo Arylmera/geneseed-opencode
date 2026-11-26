@@ -10,6 +10,7 @@ import { carrierPaths, cfgDir, findInstall, flavor, machineDir } from "./paths.j
 import { listFacts, storeCandidates } from "./read/memory.js"
 import { WIDTH, carrierText, glyphsFor, panelLines, readsTierOf, watchList } from "./panel.js"
 import { createPoll } from "./poll.js"
+import { styleOf } from "./style.js"
 
 const EVERY = 3000
 
@@ -89,20 +90,9 @@ export default Plugin.define({
     // Geneseed's guard reads its carrier once per process, at load: one pin per setup, from the first
     // snapshot read after it. null records "absent". undefined until that first read.
     let pinned: string | null | undefined
-    // Theme roles of @opencode/theme 2.3.2 ResolvedTheme. Read on every draw, so a mode switch
-    // applies; optional chaining because the Rust client runs plugins through a compatibility layer.
-    // accent is the hue OpenCode's own prompt uses (@opencode/theme 2.3.2 syntax.js: hue.accent[200]).
-    const color = (role: Role) => {
-      const th = context.theme
-      const t = th?.text
-      if (role === "success" || role === "warning" || role === "error") return t?.feedback?.[role]?.base
-      if (role === "accent") return th?.hue?.accent?.[200]
-      return role === "muted" ? t?.muted : t?.base
-    }
-    // An inverse segment is drawn as the page colour on its role's colour, set explicitly rather
-    // than through the inverse attribute, which would swap with a transparent background.
-    const style = (s: Seg) =>
-      s.inverse ? { fg: context.theme?.background?.base, bg: color(s.role), bold: s.bold } : { fg: color(s.role), bold: s.bold }
+    // Theme colours, read on every draw so a mode switch applies; src/style.js falls back when a
+    // theme key is missing, so no segment is drawn invisible.
+    const style = (s: Seg) => styleOf(context.theme, s)
     // ASCII glyphs when cli.json gives the plugin { "options": { "ascii": true } } or GENESEED_SIDEBAR_ASCII=1.
     const glyphs = glyphsFor(context.options, process.env)
     const messagesOf = (id: string): unknown => {
