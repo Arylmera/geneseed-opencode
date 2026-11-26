@@ -209,9 +209,10 @@ if (agent) {
     lines = JSON.parse(p.out.trim().split("\n").pop())
   } catch { /* reported below */ }
 }
-const texts = (lines ?? []).map((l) => l.text)
-check("panel builds the Geneseed section and the gates", texts[0] === "Geneseed" && texts.some((t) => /^\s+on\s+secrets/.test(t)), texts.slice(0, 4).join(" | ") || probeOut.slice(-300))
-check("panel builds the loop line", texts.some((t) => /^ Loop\s+try-sidebar/.test(t)), texts.filter((t) => /Loop/.test(t) || /^\s{3}\S/.test(t)).join(" | "))
+// Each row is segments; its drawn text is them joined.
+const texts = (lines ?? []).map((r) => r.map((s) => s.text).join(""))
+check("panel builds the Geneseed section and the gates", /^GENESEED\b/.test(texts[0] ?? "") && texts.some((t) => /^── ● gates ─+ \d of 4$/.test(t)) && texts.some((t) => /^  ✓ secrets\b/.test(t)), texts.slice(0, 4).join(" | ") || probeOut.slice(-300))
+check("panel builds the loop line", texts.some((t, i) => /^── ↻ loop ─/.test(t) && /^  try-sidebar\s*$/.test(texts[i + 1] ?? "")), texts.filter((t) => /loop|try-sidebar/.test(t)).join(" | "))
 
 check("your real OpenCode config dir and Geneseed machine dir are untouched (top-level entries and mtimes)", snapshot() === before)
 
