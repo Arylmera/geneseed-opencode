@@ -54,6 +54,6 @@ test("contract: memory_search's two heads are what the memory reader parses", (t
   const hit = [facts, "a-fact — what it says (topic)", "b-fact — more (topic)"].join("\n")
   assert.equal(storeNamed([{ content: [part(hit)] }]), "/store")
   assert.equal(storeNamed([{ content: [part(none)] }]), "/store")
-  assert.deepEqual(readMemoryUse([{ content: [part(hit)] }], null), [{ kind: "searched", label: "geneseed", count: 2, at: null }])
-  assert.deepEqual(readMemoryUse([{ content: [part(none)] }], null), [{ kind: "searched", label: "geneseed", count: 0, at: null }])
+  assert.deepEqual(readMemoryUse([{ content: [part(hit)] }], null), [{ kind: "searched", label: "geneseed", count: 2 }])
+  assert.deepEqual(readMemoryUse([{ content: [part(none)] }], null), [{ kind: "searched", label: "geneseed", count: 0 }])
 })

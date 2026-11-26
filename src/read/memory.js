@@ -48,8 +48,6 @@ function slugOf(rel) {
   return base.slice(0, -3)
 }
 
-const atOf = (part) => (isObj(part.time) && typeof part.time.completed === "number" ? part.time.completed : null)
-
 function textOf(state) {
   if (!Array.isArray(state.content)) return ""
   return state.content
@@ -96,7 +94,7 @@ export function storeNamed(messages) {
  * over the `store` argument, for every read.
  * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
  * @param {string|null} store
- * @returns {{ kind: "searched"|"read", label: string, count?: number, at: number|null }[]}
+ * @returns {{ kind: "searched"|"read", label: string, count?: number }[]}
  */
 export function readMemoryUse(messages, store) {
   const calls = []
@@ -111,10 +109,10 @@ export function readMemoryUse(messages, store) {
         const text = textOf(part.state)
         const dir = namedDir(text)
         if (dir) root = dir
-        calls.push({ kind: "searched", label: String(input.query ?? ""), count: countOf(text), at: atOf(part) })
+        calls.push({ kind: "searched", label: String(input.query ?? ""), count: countOf(text) })
       } else if (part.name === "read") {
         const file = typeof input.filePath === "string" ? input.filePath : input.path
-        if (typeof file === "string" && file) calls.push({ kind: "read", file, at: atOf(part) })
+        if (typeof file === "string" && file) calls.push({ kind: "read", file })
       }
     }
   }
@@ -129,7 +127,7 @@ export function readMemoryUse(messages, store) {
     const f = norm(c.file)
     if (!f.startsWith(base)) continue
     const slug = slugOf(c.file.replace(/\\/g, "/").slice(base.length))
-    if (slug) rows.push({ kind: "read", label: slug, at: c.at })
+    if (slug) rows.push({ kind: "read", label: slug })
   }
   return rows
 }

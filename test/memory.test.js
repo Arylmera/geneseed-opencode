@@ -30,15 +30,15 @@ test("windows paths keep backslashes", () => {
 test("a search with a heading and 4 fact lines counts 4", () => {
   const text = ["Facts in /s (read <slug>.md there for the whole fact):", 1, 2, 3, 4].map((x) => (typeof x === "number" ? fact(x) : x)).join("\n") + "\n\n(end of list)"
   const rows = readMemoryUse([msg(done("memory_search", { query: "parity" }, text, 5))], "/s")
-  assert.deepEqual(rows, [{ kind: "searched", label: "parity", count: 4, at: 5 }])
+  assert.deepEqual(rows, [{ kind: "searched", label: "parity", count: 4 }])
 })
 test("a No fact result counts 0", () => {
   const rows = readMemoryUse([msg(done("memory_search", { query: "zz" }, 'No fact in /s matches "zz".'))], "/s")
-  assert.deepEqual(rows, [{ kind: "searched", label: "zz", count: 0, at: null }])
+  assert.deepEqual(rows, [{ kind: "searched", label: "zz", count: 0 }])
 })
 test("a read of a fact under the store gives its slug", () => {
   const rows = readMemoryUse([msg(done("read", { filePath: "/s/host-parity-rule.md" }, "x", 9))], "/s")
-  assert.deepEqual(rows, [{ kind: "read", label: "host-parity-rule", at: 9 }])
+  assert.deepEqual(rows, [{ kind: "read", label: "host-parity-rule" }])
 })
 test("indexes and folders are not facts", () => {
   const reads = ["MEMORY.md", "README.md", "topics/x.md", "archive/a.md", "agents/b.md", "notes.txt"].map((n) =>
@@ -95,7 +95,7 @@ test("a POSIX store is case-sensitive", () => {
   assert.deepEqual(readMemoryUse([msg(done("read", { filePath: "/S/a.md" }, "x"))], "/s"), [])
 })
 test("the path input key reads a fact under the store", () => {
-  assert.deepEqual(readMemoryUse([msg(done("read", { path: "/s/a.md" }, "x", 3))], "/s"), [{ kind: "read", label: "a", at: 3 }])
+  assert.deepEqual(readMemoryUse([msg(done("read", { path: "/s/a.md" }, "x", 3))], "/s"), [{ kind: "read", label: "a" }])
 })
 
 test("storeNamed gives the dir the last search result names, else null", () => {
@@ -131,4 +131,9 @@ test("listFacts: .md files to depth 2, never inside archive, agents or topics", 
   assert.deepEqual(listFacts("/nope", io), [])
   const gone = { ...io, mtime: () => { throw new Error("ENOENT") } }
   assert.deepEqual(listFacts("/s", gone), [])
+})
+
+test("rows carry no time: time.completed is a DateTimeUtc, and nothing shows it", () => {
+  const rows = readMemoryUse([msg(done("memory_search", { query: "q" }, "x", "2026-11-26T10:00:00Z"), done("read", { path: "/s/a.md" }, "x", 3))], "/s")
+  for (const r of rows) assert.equal("at" in r, false, JSON.stringify(r))
 })
