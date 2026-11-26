@@ -493,6 +493,19 @@ test("runs: newest 3, then +N", () => {
   assert.deepEqual(rows(w, snap, []).slice(5).filter((t) => !t.startsWith("──")), [pad("  l4"), pad("  l3"), pad("  l2"), pad("  +1")])
 })
 
+test("folded runs: one line a section, the count and the newest run's step, never +N", () => {
+  const reg = JSON.stringify({ loops: [1, 2, 3, 4].map((i) => ({ root: `/r${i}`, initAt: `2026-0${i}-01T00:00:00Z` })) })
+  const w = { ...W, roots: ["/r1", "/r2", "/r3", "/r4"] }
+  const snap = { ...CARRIER, "/m/loops.json": reg }
+  for (const i of [1, 2, 3, 4]) snap[`/r${i}/LOOP.md`] = state("loop-state", { title: `l${i}`, node: `node${i}`, iteration: i, status: "running" })
+  assert.deepEqual(rows(w, snap, [], { width: 24 }), [pad("GENESEED", 24), `● Gates${" ".repeat(11)}4 of 4`, `↻ Loop${" ".repeat(4)}4 · node4 · #4`])
+  // Too narrow for it all: the step gives up columns, the count stays.
+  assert.equal(rows(w, snap, [], { width: 16 })[2], "↻ Loop 4 · node…")
+  // One run: its step alone.
+  for (const i of [1, 2, 3]) delete snap[`/r${i}/LOOP.md`]
+  assert.equal(rows(w, snap, [], { width: 24 })[2], `↻ Loop${" ".repeat(8)}node4 · #4`)
+})
+
 test("runPaths: rows without a time keep registry order, newest (last) first", () => {
   const reg = JSON.stringify({ loops: [{ root: "/r" }, { root: "/r/sub" }] })
   assert.deepEqual(runPaths(reg, "loops", "LOOP.md", ["/r", "/r/sub"], "linux"), ["/r/sub/LOOP.md", "/r/LOOP.md"])

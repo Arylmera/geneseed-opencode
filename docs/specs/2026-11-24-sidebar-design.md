@@ -60,8 +60,10 @@ texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn bo
   right. Tool input content is never shown.
 - Runs: the title, then `● waits for you` (warning, bold) or the stop reason (muted).
 - Memory: `⌕ "query"  <count>`, `◆ slug` for a fact read, `+ slug` for one learned.
-- W < 28: one line a section, `<glyph> <Name>` left and the summary right. W > 40: items on one
-  line each, label left and detail or summary right (a learned fact shows its time).
+- W < 28: one line a section, `<glyph> <Name>` left and the summary right; loops and factories
+  are one line each too, the newest run's step after `<n> · ` when there are n > 1 runs, no "+N".
+  W > 40: items on one line each, label left and detail or summary right (a learned fact shows its
+  time).
 - Lists show the newest 3, then "+N". ASCII glyphs (`* o + - ! # ~ R L F M ? + - . ~`, the last two
   standing in for `·` and `…`, so only printable ASCII is drawn) when the plugin
   option `ascii` is true or GENESEED_SIDEBAR_ASCII=1. The panel never changes the order of

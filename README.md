@@ -48,8 +48,9 @@ shows, in this order, `■ off` (guard off, with a `GUARD OFF` bar), `◐ warn`,
 `▲ <n>`: refusals plus runs that wait for you. Lists show the newest 3, then `+N`.
 
 Every row fits the sidebar's width exactly (measured from the drawn box; 32 until it is laid out).
-Below 28 columns each section folds to one line; above 40, gates go on up to four columns and each
-item on one line. Paths are cut from the left so the file name shows; other text is cut from the
+Below 28 columns each section folds to one line (runs too: the newest run's step, after the run
+count when there are more); above 40, gates go on up to four columns and each item on one line.
+Paths are cut from the left so the file name shows; other text is cut from the
 right; gate names are never cut, the grid wraps instead. Files are checked every 3 seconds and read
 again only when they change.
 

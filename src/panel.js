@@ -384,13 +384,14 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     }
   }
 
-  // Loops and factories: a rule a run (its step at the right), then the title and its note.
+  // Loops and factories: a rule a run (its step at the right), then the title and its note. Folded,
+  // one line a section: the newest run's step, after the run count when there is more than one.
   const runs = (list, glyph, name, Name) => {
+    if (fold) {
+      if (list.length) folded(glyph, Name, "accent", list.length > 1 ? `${list.length} ${g.sep} ${list[0].step}` : list[0].step)
+      return
+    }
     for (const r of list.slice(0, SHOW)) {
-      if (fold) {
-        folded(glyph, Name, "accent", r.step)
-        continue
-      }
       rule(glyph, name, "accent", r.step)
       const title = seg(r.name, "text", { flex: "right" })
       const note = r.waiting ? seg(`${g.on} waits for you`, "warning", { bold: true }) : r.note ? seg(r.note, "muted", { flex: "right" }) : null
