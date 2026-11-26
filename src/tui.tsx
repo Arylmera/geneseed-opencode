@@ -7,13 +7,11 @@ import os from "node:os"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { Plugin } from "@opencode/plugin/tui"
 import { carrierPaths, cfgDir, findInstall, flavor, machineDir } from "./paths.js"
-import { storeCandidates } from "./read/memory.js"
+import { listFacts, storeCandidates } from "./read/memory.js"
 import { panelLines, readsTierOf, watchList } from "./panel.js"
 import { createPoll } from "./poll.js"
 
 const EVERY = 3000
-// Folders learned() ignores; they are left out of the store's fingerprint as well.
-const SKIP = new Set(["archive", "agents", "topics"])
 
 type Snap = Record<string, unknown>
 // The shapes src/panel.js documents in JSDoc.
@@ -56,24 +54,21 @@ function watchFor(dir: string): Watch {
   }
 }
 
-/** fs adapter for createPoll. A folder (a memory store) is stat'd by its listing: a changed fact
- * leaves the folder's own mtime alone. */
+// The disk for listFacts: one folder's entries, one file's mtime.
+const factIo = {
+  list: (d: string) => fs.readdirSync(d, { withFileTypes: true }).map((e) => ({ name: e.name, dir: e.isDirectory() })),
+  mtime: (f: string) => fs.statSync(f).mtimeMs,
+}
+
+/** fs adapter for createPoll. A folder (a memory store) is stat'd by its fact listing, depth 2: a
+ * changed fact leaves the folder's own mtime alone. */
 function fsAdapter() {
   const listings = new Map<string, { name: string; mtimeMs: number }[]>()
   return {
     stat(x: string): unknown {
       const s = fs.statSync(x)
       if (!s.isDirectory()) return `${s.mtimeMs}:${s.size}`
-      const sp = flavor(x)
-      const entries: { name: string; mtimeMs: number }[] = []
-      for (const n of fs.readdirSync(x, { recursive: true }) as string[]) {
-        if (!/\.md$/i.test(n) || n.split(/[\\/]/).some((d) => SKIP.has(d.toLowerCase()))) continue
-        try {
-          entries.push({ name: n, mtimeMs: fs.statSync(sp.join(x, n)).mtimeMs })
-        } catch {
-          // Deleted while listing: dropped.
-        }
-      }
+      const entries = listFacts(x, factIo)
       listings.set(x, entries)
       return "dir|" + entries.map((e) => `${e.name}@${e.mtimeMs}`).join("|")
     },

@@ -105,10 +105,14 @@ export function storeOf(w, snap, messages) {
  */
 export function watchList(w, snap, messages) {
   const named = storeNamed(messages)
+  // Only the first store that exists is listed; those before it are still stat'd, in case one appears.
+  // Before the first poll none is known, so all are polled once.
+  const first = w.stores.findIndex((s) => Array.isArray(snap[s]))
+  const stores = first < 0 ? w.stores : w.stores.slice(0, first + 1)
   return [
     ...w.carriers,
-    ...w.stores,
-    ...(named && !w.stores.includes(named) ? [named] : []),
+    ...stores,
+    ...(named && !stores.includes(named) ? [named] : []),
     w.loopsReg,
     w.factReg,
     ...runPaths(text(snap[w.loopsReg]), "loops", "LOOP.md", w.roots, w.platform),

@@ -147,3 +147,39 @@ export function learned(entries, sinceMs) {
   }
   return rows.sort((a, b) => b.at - a.at)
 }
+
+/**
+ * A store's fact files with their mtimes, to depth 2 (`<store>/x.md`, `<store>/<dir>/x.md`), never
+ * inside archive/, agents/ or topics/. Names are store-relative, "/"-separated. A folder that cannot
+ * be listed and a file that cannot be stat'd are left out. Pure: `io` does the disk.
+ * @param {string} dir
+ * @param {{ list: (d: string) => { name: string, dir: boolean }[], mtime: (p: string) => number }} io
+ * @param {number} [depth]
+ * @returns {{ name: string, mtimeMs: number }[]}
+ */
+export function listFacts(dir, io, depth = 2) {
+  const p = flavor(dir)
+  const out = []
+  const walk = (abs, rel, level) => {
+    let entries
+    try {
+      entries = io.list(abs)
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const name = rel ? `${rel}/${e.name}` : e.name
+      if (e.dir) {
+        if (level < depth && !FOLDERS.has(e.name.toLowerCase())) walk(p.join(abs, e.name), name, level + 1)
+      } else if (/\.md$/i.test(e.name)) {
+        try {
+          out.push({ name, mtimeMs: io.mtime(p.join(abs, e.name)) })
+        } catch {
+          // Deleted while listing: dropped.
+        }
+      }
+    }
+  }
+  walk(dir, "", 1)
+  return out
+}

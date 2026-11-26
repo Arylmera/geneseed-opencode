@@ -107,3 +107,28 @@ test("storeNamed gives the dir the last search result names, else null", () => {
   assert.equal(storeNamed([msg(c)]), null)
   assert.equal(storeNamed("x"), null)
 })
+
+test("listFacts: .md files to depth 2, never inside archive, agents or topics", async () => {
+  const { listFacts } = await import("../src/read/memory.js")
+  const tree = {
+    "/s": [["a.md", false], ["notes.txt", false], ["sub", true], ["archive", true], ["Topics", true]],
+    "/s/sub": [["b.md", false], ["deep", true]],
+    "/s/sub/deep": [["c.md", false]],
+    "/s/archive": [["old.md", false]],
+    "/s/Topics": [["t.md", false]],
+  }
+  const seen = []
+  const io = {
+    list: (d) => {
+      seen.push(d)
+      if (!tree[d]) throw new Error("ENOENT")
+      return tree[d].map(([name, dir]) => ({ name, dir }))
+    },
+    mtime: (p) => (p.endsWith("a.md") ? 1 : 2),
+  }
+  assert.deepEqual(listFacts("/s", io), [{ name: "a.md", mtimeMs: 1 }, { name: "sub/b.md", mtimeMs: 2 }])
+  assert.deepEqual(seen, ["/s", "/s/sub"])
+  assert.deepEqual(listFacts("/nope", io), [])
+  const gone = { ...io, mtime: () => { throw new Error("ENOENT") } }
+  assert.deepEqual(listFacts("/s", gone), [])
+})

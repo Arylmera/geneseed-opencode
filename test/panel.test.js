@@ -205,3 +205,15 @@ test("readsTierOf: global always; project when .geneseed-emit ends with -global"
   assert.equal(readsTierOf({ kind: "project", root: "/r" }, "opencode-project\n"), false)
   assert.equal(readsTierOf({ kind: "project", root: "/r" }, null), false)
 })
+
+test("watchList polls the stores only up to the first that exists, plus the named one", () => {
+  const w = { ...W, stores: ["/a/memory", "/b/memory", "/c/memory", "/d/memory"] }
+  const stores = (snap, messages = []) => watchList(w, snap, messages).filter((p) => p.endsWith("memory") || p === "/seen")
+  // Nothing known yet: every candidate, so the first tick finds the first existing one.
+  assert.deepEqual(stores({}), ["/a/memory", "/b/memory", "/c/memory", "/d/memory"])
+  // /a missing, /b exists: /c and /d are no longer polled; /a still is, in case it appears.
+  assert.deepEqual(stores({ "/a/memory": null, "/b/memory": [], "/c/memory": [] }), ["/a/memory", "/b/memory"])
+  assert.deepEqual(stores({ "/a/memory": [] }), ["/a/memory"])
+  const named = [msg(done("memory_search", { query: "q" }, "Facts in /seen (read x):\n", 1))]
+  assert.deepEqual(stores({ "/a/memory": [] }, named), ["/a/memory", "/seen"])
+})
