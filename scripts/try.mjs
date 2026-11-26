@@ -16,7 +16,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
+import { CHECKLIST, KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const argv = process.argv.slice(2)
@@ -246,12 +246,8 @@ fs.writeFileSync(ps1File, ps1)
 const allOk = results.every(Boolean)
 console.log(`\n${allOk ? "All headless checks ok." : "Some headless checks FAILED. Do not trust the screen run until they pass."}`)
 console.log(`\nOpen OpenCode's screen in the throwaway home (PowerShell, one command):\n\n  powershell -NoProfile -ExecutionPolicy Bypass -File "${ps1File}"\n`)
-console.log("What you should see:")
-console.log("  1. A Geneseed section in the right sidebar.")
-console.log("  2. Under it, Gates: on secrets, deletion, ownership, external; n/a done (OpenCode 2).")
-console.log("  3. After you type any prompt: a Refused line (Sealed Secrets, .ssh/id_rsa) as the scripted model tries that write.")
-console.log("  4. A Loop try-sidebar line with its step; it goes when you delete LOOP.md in the project.")
-console.log("  5. Memory: a searched row appears after the second turn.")
+console.log("What you should see (the README checklist):")
+CHECKLIST.forEach((item, i) => console.log(`  ${i + 1}. ${item}`))
 console.log(`\nThe scripted model is running (pid ${model.pid}, stops itself after 30 minutes). Stop it now with:\n\n  Stop-Process -Id ${model.pid}\n`)
 console.log(`When done, remove the home:\n\n  node scripts/try.mjs --clean "${HOME}"\n`)
 process.exit(allOk ? 0 : 1)

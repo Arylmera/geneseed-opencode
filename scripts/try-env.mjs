@@ -87,3 +87,13 @@ export function tryTurns(project) {
 export function realDirs(env, home) {
   return [cfgDir(env, home), machineDir(env, home)]
 }
+
+/** The live-run checklist: try.mjs prints it, the README lists it, a test holds them equal. */
+export const CHECKLIST = [
+  "The Geneseed section is in the sidebar, with the gates.",
+  "After you type any prompt, a Refused row appears (Sealed Secrets, `.ssh/id_rsa`).",
+  "A Loop row `try-sidebar` is shown.",
+  "Memory: a searched row appears after the second turn.",
+  String.raw`In another PowerShell, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\geneseed\loops.json${"`"} (in the home the script printed): within a few seconds the loop row goes and the session keeps running.`,
+  String.raw`Quit, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\opencode\AGENT.md${"`"}, start the screen again with the same command: the Geneseed panel is hidden.`,
+]

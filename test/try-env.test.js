@@ -81,3 +81,21 @@ test("every child try.mjs starts gets the allowlisted env", async () => {
   assert.ok(calls.length >= 3, `only ${calls.length} child calls found`)
   for (const c of calls) assert.match(c, /\benv:\s*env\(/, c.split("\n")[0])
 })
+
+test("try.mjs prints the README checklist: same items, same order, same words", async () => {
+  const fs = await import("node:fs")
+  const { CHECKLIST } = await import("../scripts/try-env.mjs")
+  const readme = fs.readFileSync(new URL("../README.md", import.meta.url), "utf8")
+  const start = readme.indexOf("Checklist for the live run")
+  assert.ok(start >= 0, "no checklist in the README")
+  const items = []
+  for (const line of readme.slice(start).split("\n").slice(1)) {
+    if (/^\d+\. /.test(line)) items.push(line.replace(/^\d+\. /, ""))
+    else if (/^ {3}\S/.test(line) && items.length) items[items.length - 1] += ` ${line.trim()}`
+    else if (items.length && line.trim() === "") break
+  }
+  assert.ok(items.length >= 6, `only ${items.length} README items`)
+  assert.deepEqual(CHECKLIST, items)
+  const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
+  assert.match(src, /CHECKLIST\.forEach/)
+})
