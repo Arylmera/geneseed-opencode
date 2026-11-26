@@ -66,8 +66,8 @@ checked against a live OpenCode yet; see Try it.
 children (and the screen command) get only an allowlist of environment variables (PATH, the Windows
 system ones, the terminal ones) plus the throwaway locations, so no ambient OpenCode, Geneseed,
 Claude, proxy or credential variable reaches the run. It then compares the top-level entries and
-modification times of your real OpenCode config dir, Geneseed machine dir and `~/.claude` (found
-from your own environment) before and after, and reports a change as FAIL.
+modification times of your real OpenCode config dir and Geneseed machine dir (found from your own
+environment) before and after, and reports a change as FAIL.
 
 ```
 node scripts/try.mjs --geneseed <Geneseed checkout> [--opencode <opencode.exe>]

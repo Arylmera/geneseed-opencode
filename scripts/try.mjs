@@ -8,15 +8,15 @@
 // lists this checkout, a scripted model on 127.0.0.1 (scripts/fake-model.mjs: no real model, no credentials), and a temp git
 // repo with a real `loop init`. It checks what it can without a screen, prints each result, then
 // prints the one command that opens OpenCode's screen in that home. It never starts that screen.
-// Nothing reads or writes your real ~/.config/opencode, ~/.config/geneseed or ~/.claude.
+// Nothing writes your real OpenCode config dir or Geneseed machine dir: a check compares their
+// top-level entries and mtimes before and after.
 import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, tryTurns } from "./try-env.mjs"
-import { cfgDir, machineDir } from "../src/paths.js"
+import { KEEP, RUNTIME_MODULES, buildEnv, missingModules, overridesFor, realDirs, tryTurns } from "./try-env.mjs"
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const argv = process.argv.slice(2)
@@ -68,11 +68,10 @@ for (const f of ["bin/build-driver.mjs", "bin/geneseed-cli.mjs"]) {
 }
 
 // What the owner's real config looked like before, to prove it was left alone: the top-level entries
-// (name and mtime) of the real OpenCode config dir, Geneseed machine dir and ~/.claude, from the
-// parent environment.
-const realHome = os.homedir()
-const realDirs = [cfgDir(process.env, realHome), machineDir(process.env, realHome), path.join(realHome, ".claude")]
-const snapshot = () => JSON.stringify(realDirs.map((d) => {
+// (name and mtime) of the real OpenCode config dir and Geneseed machine dir, from the parent
+// environment.
+const watched = realDirs(process.env, os.homedir())
+const snapshot = () => JSON.stringify(watched.map((d) => {
   try {
     return fs.readdirSync(d).sort().map((n) => [n, fs.statSync(path.join(d, n)).mtimeMs])
   } catch {
@@ -214,7 +213,7 @@ const texts = (lines ?? []).map((l) => l.text)
 check("panel builds the Geneseed section and the gates", texts[0] === "Geneseed" && texts.some((t) => /^\s+on\s+secrets/.test(t)), texts.slice(0, 4).join(" | ") || probeOut.slice(-300))
 check("panel builds the loop line", texts.some((t) => /^ Loop\s+try-sidebar/.test(t)), texts.filter((t) => /Loop/.test(t) || /^\s{3}\S/.test(t)).join(" | "))
 
-check("your real OpenCode config dir, Geneseed machine dir and ~/.claude are untouched (top-level entries and mtimes)", snapshot() === before)
+check("your real OpenCode config dir and Geneseed machine dir are untouched (top-level entries and mtimes)", snapshot() === before)
 
 // 6. The command for the owner. A .ps1 in the home sets the environment, so the command itself is plain.
 const exe = opt("--opencode", findOpencode())

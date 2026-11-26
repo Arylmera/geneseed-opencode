@@ -2,6 +2,7 @@
 // here (OPENCODE_CONFIG, OPENCODE_AUTH_CONTENT, proxies, credentials, CLAUDE_CONFIG_DIR, ...) is gone.
 import { createRequire } from "node:module"
 import path from "node:path"
+import { cfgDir, machineDir } from "../src/paths.js"
 
 // What Windows and Node need to start, and what the screen needs to draw. Compared case-insensitively.
 export const KEEP = [
@@ -75,4 +76,14 @@ export function tryTurns(project) {
     { tool: "memory_search", args: { query: "geneseed" } },
     { tool: "write", path: path.join(project, "allowed.txt"), content: "ok" },
   ]
+}
+
+/**
+ * The owner's real folders try.mjs proves untouched: the OpenCode config dir and the Geneseed
+ * machine dir, as `env` and `home` resolve them.
+ * @param {Record<string, string|undefined>} env
+ * @param {string} home
+ */
+export function realDirs(env, home) {
+  return [cfgDir(env, home), machineDir(env, home)]
 }

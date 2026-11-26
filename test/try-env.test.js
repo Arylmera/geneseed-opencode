@@ -55,3 +55,11 @@ test("missingModules: names what does not resolve from the repo, finds what does
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("the untouched check watches the real OpenCode config dir and Geneseed machine dir, not ~/.claude", async () => {
+  const { realDirs } = await import("../scripts/try-env.mjs")
+  const home = "/home/me"
+  assert.deepEqual(realDirs({}, home), ["/home/me/.config/opencode", "/home/me/.config/geneseed"])
+  assert.deepEqual(realDirs({ OPENCODE_CONFIG_DIR: "/oc", XDG_CONFIG_HOME: "/x" }, home), ["/oc", "/x/geneseed"])
+  for (const d of realDirs({}, home)) assert.doesNotMatch(d, /\.claude/)
+})
