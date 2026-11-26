@@ -100,50 +100,78 @@ test("try.mjs prints the README checklist: same items, same order, same words", 
   assert.match(src, /CHECKLIST\.forEach/)
 })
 
-test("cleanHome: a busy opencode.db deletes nothing, says so with the full command, exits 1", async () => {
-  const { cleanHome } = await import("../scripts/try-env.mjs")
-  const out = []
-  const err = []
-  const removed = []
-  const code = cleanHome(String.raw`C:\Temp\gs-try-abc`, {
-    isBusy: (f) => f.endsWith("opencode.db") && f.includes(".local"),
-    remove: (p) => removed.push(p),
-    log: (s) => out.push(s),
-    error: (s) => err.push(s),
+const cleanFakes = (o = {}) => {
+  const f = { renamed: [], removed: [], out: [], err: [] }
+  f.opts = {
+    rename: (a, b) => { f.renamed.push([a, b]) },
+    remove: (d) => { f.removed.push(d) },
+    log: (s) => f.out.push(s),
+    error: (s) => f.err.push(s),
     script: String.raw`C:\repo\scripts\try.mjs`,
-  })
-  assert.equal(code, 1)
-  assert.deepEqual(removed, [])
-  assert.equal(err[0], "clean: OpenCode still has this home open. Quit it, then run this again:")
-  assert.equal(err[1], String.raw`  node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc"`)
-  assert.equal(err.length, 2)
-})
+    random: () => "k3j9",
+    ...o,
+  }
+  return f
+}
+const HOME_X = String.raw`C:\Temp\gs-try-abc`
 
-test("cleanHome: the lock is looked for on the home's own opencode.db", async () => {
+test("cleanHome: a held home (the rename fails) deletes nothing, says so with the full command, exits 1", async () => {
   const { cleanHome } = await import("../scripts/try-env.mjs")
-  const asked = []
-  cleanHome("/t/gs-try-abc", { isBusy: (f) => (asked.push(f), false), remove: () => {}, log: () => {}, error: () => {}, script: "/r/try.mjs" })
-  assert.deepEqual(asked, [path.join("/t/gs-try-abc", ".local", "share", "opencode", "opencode.db")])
+  for (const code of ["EBUSY", "EPERM", "EACCES"]) {
+    const f = cleanFakes({ rename: () => { throw Object.assign(new Error(code), { code }) } })
+    assert.equal(cleanHome(HOME_X, f.opts), 1, code)
+    assert.deepEqual(f.removed, [], code)
+    assert.deepEqual(f.err, [
+      "clean: something still holds this home (OpenCode, or a shell whose folder is inside it). Close it, then run this again:",
+      String.raw`  node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc"`,
+    ], code)
+  }
 })
 
-test("cleanHome: a free home is removed; any other delete error is one line with path and code", async () => {
+test("cleanHome: the home is renamed to a sibling .del-<random>, then that folder is removed", async () => {
   const { cleanHome } = await import("../scripts/try-env.mjs")
-  const out = []
-  assert.equal(cleanHome("/t/gs-try-abc", { isBusy: () => false, remove: () => {}, log: (s) => out.push(s), error: () => {}, script: "/r/try.mjs" }), 0)
-  assert.deepEqual(out, ["removed /t/gs-try-abc"])
-  const err = []
-  const boom = Object.assign(new Error("EPERM: operation not permitted, rmdir 'x'"), { code: "EPERM", path: "/t/gs-try-abc/.cache" })
-  const code = cleanHome("/t/gs-try-abc", { isBusy: () => false, remove: () => { throw boom }, log: () => {}, error: (s) => err.push(s), script: "/r/try.mjs" })
-  assert.equal(code, 1)
-  assert.deepEqual(err, ["clean: could not remove /t/gs-try-abc/.cache (EPERM)"])
+  const f = cleanFakes()
+  assert.equal(cleanHome(HOME_X, f.opts), 0)
+  assert.deepEqual(f.renamed, [[HOME_X, `${HOME_X}.del-k3j9`]])
+  assert.deepEqual(f.removed, [`${HOME_X}.del-k3j9`])
+  assert.deepEqual(f.out, [`removed ${HOME_X}`])
 })
 
-test("isBusy: a missing database is not busy; one that cannot be renamed is", async () => {
-  const { dbBusy } = await import("../scripts/try-env.mjs")
-  const mk = (code) => ({ existsSync: () => true, renameSync: () => { if (code) throw Object.assign(new Error(code), { code }) } })
-  assert.equal(dbBusy("/x/opencode.db", { existsSync: () => false, renameSync: () => { throw new Error("no") } }), false)
-  assert.equal(dbBusy("/x/opencode.db", mk(null)), false)
-  for (const c of ["EBUSY", "EPERM", "EACCES"]) assert.equal(dbBusy("/x/opencode.db", mk(c)), true, c)
+test("cleanHome: rename ok, delete fails: names the .del folder that is left and that the home is gone", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const boom = Object.assign(new Error("x"), { code: "EPERM", path: `${HOME_X}.del-k3j9\\.cache` })
+  const f = cleanFakes({ remove: () => { throw boom } })
+  assert.equal(cleanHome(HOME_X, f.opts), 1)
+  assert.equal(f.err[0], `clean: could not remove ${HOME_X}.del-k3j9\\.cache (EPERM)`)
+  const rest = f.err.slice(1).join("\n")
+  assert.ok(rest.includes("The home itself is gone"), rest)
+  assert.ok(rest.includes(`${HOME_X}.del-k3j9 is left`), rest)
+  assert.ok(rest.includes(String.raw`node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc.del-k3j9"`), rest)
+})
+
+test("cleanHome: a leftover .del folder is removed as it is, no second rename", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const f = cleanFakes()
+  assert.equal(cleanHome(`${HOME_X}.del-k3j9`, f.opts), 0)
+  assert.deepEqual(f.renamed, [])
+  assert.deepEqual(f.removed, [`${HOME_X}.del-k3j9`])
+})
+
+test("cleanHome: a rename error that is not a lock is one line with the path and code", async () => {
+  const { cleanHome } = await import("../scripts/try-env.mjs")
+  const f = cleanFakes({ rename: () => { throw Object.assign(new Error("x"), { code: "ENOENT" }) } })
+  assert.equal(cleanHome(HOME_X, f.opts), 1)
+  assert.deepEqual(f.err, [`clean: could not rename ${HOME_X} (ENOENT)`])
+})
+
+test("try.mjs --clean accepts a gs-try-* home and its .del-* leftover, nothing else", async () => {
+  const fs = await import("node:fs")
+  const src = fs.readFileSync(new URL("../scripts/try.mjs", import.meta.url), "utf8")
+  const m = /const ok = (\/.*?\/)\.test\(/.exec(src)
+  assert.ok(m, "no name check")
+  const re = eval(m[1])
+  for (const good of ["gs-try-abc", "gs-try-abc.del-k3j9"]) assert.ok(re.test(good), good)
+  for (const bad of ["gs-try-", "gs-try-abc.del-", "gs-try-abc.del-x.del-y", "gs-try-abc.bak", "other"]) assert.ok(!re.test(bad), bad)
 })
 
 test("every command try.mjs prints runs from any folder: absolute paths, none starting 'node scripts'", async () => {
@@ -153,8 +181,10 @@ test("every command try.mjs prints runs from any folder: absolute paths, none st
   assert.ok(cmds.length >= 5)
   for (const c of cmds) {
     assert.doesNotMatch(c, /^\s*node\s+scripts/, c)
-    assert.doesNotMatch(c, /"\.{1,2}[\/]/, c)
+    const quoted = [...c.matchAll(/"([^"]*)"/g)].map((m) => m[1])
+    for (const q of quoted) assert.ok(path.win32.isAbsolute(q), `${q} in: ${c}`)
   }
+  assert.ok(cmds.filter((c) => c.includes('"')).length >= 4)
   assert.ok(cmds.includes(String.raw`node "C:\repo\scripts\try.mjs" --clean "C:\Temp\gs-try-abc"`))
   assert.ok(cmds.includes("Stop-Process -Id 4242"))
   assert.ok(cmds.includes(String.raw`powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\gs-try-abc\try.ps1"`))

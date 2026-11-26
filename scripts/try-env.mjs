@@ -98,41 +98,44 @@ export const CHECKLIST = [
   String.raw`Quit, ${"`"}Rename-Item${"`"} the throwaway ${"`"}.config\opencode\AGENT.md${"`"}, start the screen again with the same command: the Geneseed panel is hidden.`,
 ]
 
-/**
- * Is this file held by another process? A rename onto itself fails with EBUSY while OpenCode has its
- * database open (a plain open for writing succeeds: SQLite shares it), which is the same lock that
- * stops the delete.
- * @param {string} file
- * @param {{ existsSync: (f: string) => boolean, renameSync: (a: string, b: string) => void }} fs
- */
-export function dbBusy(file, fs) {
-  if (!fs.existsSync(file)) return false
-  try {
-    fs.renameSync(file, file)
-    return false
-  } catch (e) {
-    return ["EBUSY", "EPERM", "EACCES"].includes(e?.code)
-  }
-}
-
 /** The one command that removes `home`, whole: runs from any folder. */
 export const cleanCommand = (script, home) => `node "${script}" --clean "${home}"`
 
+/** A leftover of an earlier --clean: the home renamed aside, `gs-try-<id>.del-<id>`. */
+export const isLeftover = (dir) => /\.del-[A-Za-z0-9]+$/.test(path.basename(dir))
+
 /**
- * --clean's work, after the folder was checked to be a gs-try-* home. Nothing is deleted while
- * OpenCode still holds the database; any other failure is one line, no stack.
+ * --clean's work, after the folder was checked to be a gs-try-* home (or a leftover of one). The
+ * home is first renamed to a sibling `<home>.del-<random>`: a process holding anything inside it
+ * (OpenCode and its database, a shell whose folder is in it, the model) makes that rename fail
+ * whole, so nothing is deleted and no half-deleted home is left. Then the renamed folder goes.
+ * @param {string} real
+ * @param {{ rename: (a: string, b: string) => void, remove: (d: string) => void, log: (s: string) => void,
+ *   error: (s: string) => void, script: string, random?: () => string }} o
  * @returns {number} the exit code
  */
-export function cleanHome(real, { isBusy, remove, log, error, script }) {
-  if (isBusy(path.join(real, ".local", "share", "opencode", "opencode.db"))) {
-    error("clean: OpenCode still has this home open. Quit it, then run this again:")
-    error(`  ${cleanCommand(script, real)}`)
-    return 1
+export function cleanHome(real, { rename, remove, log, error, script, random = () => Math.random().toString(36).slice(2, 10) }) {
+  let target = real
+  if (!isLeftover(real)) {
+    target = `${real}.del-${random()}`
+    try {
+      rename(real, target)
+    } catch (e) {
+      if (["EBUSY", "EPERM", "EACCES"].includes(e?.code)) {
+        error("clean: something still holds this home (OpenCode, or a shell whose folder is inside it). Close it, then run this again:")
+        error(`  ${cleanCommand(script, real)}`)
+      } else {
+        error(`clean: could not rename ${real} (${e?.code ?? "unknown"})`)
+      }
+      return 1
+    }
   }
   try {
-    remove(real)
+    remove(target)
   } catch (e) {
-    error(`clean: could not remove ${e?.path ?? real} (${e?.code ?? "unknown"})`)
+    error(`clean: could not remove ${e?.path ?? target} (${e?.code ?? "unknown"})`)
+    if (target !== real) error(`  The home itself is gone; ${target} is left. Remove it with:\n  ${cleanCommand(script, target)}`)
+    else error(`  ${target} is left. Run this again:\n  ${cleanCommand(script, target)}`)
     return 1
   }
   log(`removed ${real}`)
@@ -141,7 +144,7 @@ export function cleanHome(real, { isBusy, remove, log, error, script }) {
 
 /**
  * Every command try.mjs prints for the owner to run. Each runs as written from any folder (R12):
- * absolute paths only.
+ * absolute paths only. Windows-only on purpose: PowerShell commands and win32 paths, like try.ps1.
  * @param {{ script: string, home: string, pid: number|string }} a
  */
 export function printedCommands({ script, home, pid }) {

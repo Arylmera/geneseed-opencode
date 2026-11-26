@@ -279,3 +279,13 @@ test("refused path detail: relative to the session dir, else the last two segmen
   ]
   for (const [name, w, input, want] of cases) assert.deepEqual(row(w, input), want, name)
 })
+
+test("refused path detail: a last-two-segments tail wider than 30 columns is cut at 30, rule above it", () => {
+  const w = { ...W, roots: [String.raw`C:\Users\g\proj`], platform: "win32" }
+  const input = { path: String.raw`C:\Users\g\AppData\Local\averyveryverylongfoldername\anotherverylongfilename_rsa` }
+  const all = shown(w, { "/cfg/AGENT.md": "carrier" }, [msg(refused(1, input))])
+  assert.deepEqual(all.slice(all.indexOf("warning| Refused  1") + 1), [
+    "muted|  Sealed Secrets",
+    String.raw`muted|    …\averyveryverylongfolder…`,
+  ])
+})
