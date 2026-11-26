@@ -121,23 +121,21 @@ if (!port) {
   process.exit(1)
 }
 
-if (port) {
-  // The only provider is the scripted model; `model` and `small_model` both name it.
-  fs.writeFileSync(path.join(PROJECT, "opencode.json"), JSON.stringify({
-    model: "canary/fake",
-    small_model: "canary/fake",
-    provider: {
-      canary: {
-        npm: "@ai-sdk/openai-compatible",
-        name: "canary",
-        options: { baseURL: `http://127.0.0.1:${port}/v1`, apiKey: "none" },
-        models: { fake: { name: "fake" } },
-      },
+// The only provider is the scripted model; `model` and `small_model` both name it.
+fs.writeFileSync(path.join(PROJECT, "opencode.json"), JSON.stringify({
+  model: "canary/fake",
+  small_model: "canary/fake",
+  provider: {
+    canary: {
+      npm: "@ai-sdk/openai-compatible",
+      name: "canary",
+      options: { baseURL: `http://127.0.0.1:${port}/v1`, apiKey: "none" },
+      models: { fake: { name: "fake" } },
     },
-    enabled_providers: ["canary"],
-    permission: { edit: "allow" },
-  }, null, 2))
-}
+  },
+  enabled_providers: ["canary"],
+  permission: { edit: "allow" },
+}, null, 2))
 
 // 4. The project: a temp git repo with a real loop registered.
 const git = (...a) => run("git", ["-c", "user.name=try", "-c", "user.email=try@example.invalid", ...a], PROJECT, 30_000)
@@ -164,16 +162,14 @@ const missing = missingModules(REPO)
 check(`${RUNTIME_MODULES.join(" and ")} resolve from the repo`, missing.length === 0,
   missing.length ? `missing ${missing.join(", ")}: run npm install --ignore-scripts in ${REPO}` : "")
 
-let listening = false
-if (port) {
-  listening = await new Promise((resolve) => {
-    const s = net.connect(Number(port), "127.0.0.1")
-    s.once("connect", () => { s.destroy(); resolve(true) })
-    s.once("error", () => resolve(false))
-    setTimeout(() => resolve(false), 3000).unref()
-  })
-}
-check("fake model listens on 127.0.0.1", listening, port ? `port ${port}, pid ${model.pid}` : "no port file after 10 s")
+// The port file exists here: without it the script stopped above.
+const listening = await new Promise((resolve) => {
+  const s = net.connect(Number(port), "127.0.0.1")
+  s.once("connect", () => { s.destroy(); resolve(true) })
+  s.once("error", () => resolve(false))
+  setTimeout(() => resolve(false), 3000).unref()
+})
+check("fake model listens on 127.0.0.1", listening, `port ${port}, pid ${model.pid}`)
 
 const loopsFile = path.join(MACHINE, "loops.json")
 let rows = []
