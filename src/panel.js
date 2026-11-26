@@ -28,8 +28,8 @@ export const SHOW = 3
  */
 
 /**
- * Every glyph the panel draws: [name, Unicode, ASCII]. The ASCII set stands in when the plugin
- * option `ascii` is true or GENESEED_SIDEBAR_ASCII=1.
+ * Every glyph the panel draws: [name, Unicode, ASCII], each one column wide. The ASCII set (printable
+ * ASCII only) stands in when the plugin option `ascii` is true or GENESEED_SIDEBAR_ASCII=1.
  */
 export const GLYPH_TABLE = [
   ["on", "●", "*"],
@@ -46,6 +46,8 @@ export const GLYPH_TABLE = [
   ["search", "⌕", "?"],
   ["learned", "+", "+"],
   ["rule", "─", "-"],
+  ["sep", "·", "."],
+  ["ellipsis", "…", "~"],
 ]
 
 /** @type {{ unicode: Glyphs, ascii: Glyphs }} */
@@ -71,7 +73,7 @@ const len = cols
  * At most `width` columns, the last an ellipsis: the head of s, grapheme clusters kept whole; a
  * wide one that would cross the edge is left out and the gap padded, so a cut is exactly `width`.
  */
-export function cut(s, width = WIDTH) {
+export function cut(s, width = WIDTH, ell = "…") {
   const str = String(s)
   if (cols(str) <= width) return str
   if (width <= 0) return ""
@@ -83,11 +85,11 @@ export function cut(s, width = WIDTH) {
     out += g
     n += w
   }
-  return out + "…" + " ".repeat(width - 1 - n)
+  return out + ell + " ".repeat(width - 1 - n)
 }
 
 /** As cut, the ellipsis first and the right end kept (the padding stays at the right). */
-export function cutLeft(s, width) {
+export function cutLeft(s, width, ell = "…") {
   const str = String(s)
   if (cols(str) <= width) return str
   if (width <= 0) return ""
@@ -99,17 +101,18 @@ export function cutLeft(s, width) {
     out = g + out
     n += w
   }
-  return "…" + out + " ".repeat(width - 1 - n)
+  return ell + out + " ".repeat(width - 1 - n)
 }
 
 /**
  * A refused path for a panel row: relative to the session dir when it lies under it, else its
- * last two segments after an ellipsis. Keeps the path's own separator; case rules are paths.js's
+ * last two segments after the ellipsis `ell`. Keeps the path's own separator; case rules are paths.js's
  * (a drive-letter path is win32, so compared case-insensitively).
  * @param {string} detail
  * @param {string|undefined} dir
+ * @param {string} [ell]
  */
-export function shortPath(detail, dir) {
+export function shortPath(detail, dir, ell = "…") {
   const sep = detail.includes("\\") ? "\\" : "/"
   const p = flavor(detail)
   if (dir && flavor(dir) === p) {
@@ -117,7 +120,7 @@ export function shortPath(detail, dir) {
     if (rel && rel !== ".." && !rel.startsWith(`..${p.sep}`) && !p.isAbsolute(rel)) return rel.split(/[\\/]+/).join(sep)
   }
   const parts = detail.split(/[\\/]+/).filter(Boolean)
-  return parts.length > 2 ? `…${sep}${parts.slice(-2).join(sep)}` : detail
+  return parts.length > 2 ? `${ell}${sep}${parts.slice(-2).join(sep)}` : detail
 }
 
 
@@ -215,14 +218,14 @@ const seg = (text, role, more) => ({ text, role, ...more })
 const widthOf = (segs) => segs.reduce((n, s) => n + len(s.text), 0)
 
 /** The row cut or padded (with spaces) to exactly W columns; empty segments dropped. */
-function fit(row, W) {
+function fit(row, W, ell = "…") {
   /** @type {Row} */
   const out = []
   let room = W
   for (const s of row) {
     if (room <= 0) break
     const n = len(s.text)
-    out.push(n <= room ? s : { ...s, text: cut(s.text, room) })
+    out.push(n <= room ? s : { ...s, text: cut(s.text, room, ell) })
     room -= Math.min(n, room)
   }
   if (room > 0) out.push(seg(" ".repeat(room), "text"))
@@ -237,7 +240,7 @@ function fit(row, W) {
  * The input segments are left as they are: the row is made of copies, without `flex`.
  * @returns {Row}
  */
-export function spread(W, left, right = [], { fill = " ", role = "text", min = 0 } = {}) {
+export function spread(W, left, right = [], { fill = " ", role = "text", min = 0, ell = "…" } = {}) {
   const parts = [...left, ...right]
   const keep = parts.map((s) => len(s.text))
   let over = keep.reduce((n, k) => n + k, 0) + min - W
@@ -250,12 +253,12 @@ export function spread(W, left, right = [], { fill = " ", role = "text", min = 0
     over -= 1
   }
   const out = parts.map(({ flex, ...s }, i) =>
-    keep[i] === len(s.text) ? s : { ...s, text: flex === "left" ? cutLeft(s.text, keep[i]) : cut(s.text, keep[i]) },
+    keep[i] === len(s.text) ? s : { ...s, text: flex === "left" ? cutLeft(s.text, keep[i], ell) : cut(s.text, keep[i], ell) },
   )
   const l = out.slice(0, left.length)
   const r = out.slice(left.length)
   const gap = W - widthOf(out)
-  return fit([...l, ...(gap > 0 ? [seg(fill.repeat(gap), role)] : []), ...r], W)
+  return fit([...l, ...(gap > 0 ? [seg(fill.repeat(gap), role)] : []), ...r], W, ell)
 }
 
 /**
@@ -285,29 +288,30 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
 
   const W = width
   const g = glyphs
+  const spreadW = (left, right, o = {}) => spread(W, left, right, { ...o, ell: g.ellipsis })
   const fold = W < FOLD
   const wide = W > WIDE
   /** @type {Row[]} */
   const out = []
-  const item = (segs) => out.push(spread(W, segs))
+  const item = (segs) => out.push(spreadW(segs))
   const indent = () => seg("  ", "text")
   const more = (n) => n > SHOW && item([seg(`  +${n - SHOW}`, "muted")])
   const rule = (glyph, name, role, summary) =>
     out.push(
-      spread(W, [seg(`${g.rule}${g.rule} `, "muted"), seg(glyph, role), seg(` ${name} `, "text")], [seg(" ", "muted"), seg(summary, role, { flex: "right" })], {
+      spreadW([seg(`${g.rule}${g.rule} `, "muted"), seg(glyph, role), seg(` ${name} `, "text")], [seg(" ", "muted"), seg(summary, role, { flex: "right" })], {
         fill: g.rule,
         role: "muted",
         min: 1,
       }),
     )
-  const folded = (glyph, name, role, summary) => out.push(spread(W, [seg(glyph, role), seg(` ${name}`, "text")], [seg(summary, role, { flex: "right" })], { min: 1 }))
+  const folded = (glyph, name, role, summary) => out.push(spreadW([seg(glyph, role), seg(` ${name}`, "text")], [seg(summary, role, { flex: "right" })], { min: 1 }))
 
   const refused = readRefusals(messages)
   const runsOf = (kind, reg, key, file, tag) =>
     runPaths(text(snap[reg]), key, file, w.roots, w.platform)
       .map((f) => {
         const st = readState(snap[f], tag)
-        const l = runLine(kind, st)
+        const l = runLine(kind, st, g.sep)
         return l && { ...l, waiting: st.status === "awaiting" }
       })
       .filter((l) => l !== null)
@@ -326,11 +330,11 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
           : count
             ? [seg(`${g.alert} ${count}`, "warning")]
             : []
-  out.push(spread(W, [seg("GENESEED", "accent", { bold: true })], badge, { min: 1 }))
+  out.push(spreadW([seg("GENESEED", "accent", { bold: true })], badge, { min: 1 }))
 
   // Gates. Guard off replaces the section with one line, under an inverse error bar.
   if (gates.guard === "off") {
-    const bar = cut("GUARD OFF · nothing blocks", W)
+    const bar = cut(`GUARD OFF ${g.sep} nothing blocks`, W, g.ellipsis)
     out.push([seg(bar + " ".repeat(W - len(bar)), "error", { inverse: true })])
     item([seg("  GENESEED_GUARD=off", "muted")])
   } else {
@@ -339,7 +343,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     if (fold) folded(g.on, "Gates", role, summary)
     else {
       rule(g.on, "gates", role, summary)
-      if (gates.guard === "warn") item([indent(), seg(`${g.warn} warn only · logs, no block`, "warning", { flex: "right" })])
+      if (gates.guard === "warn") item([indent(), seg(`${g.warn} warn only ${g.sep} logs, no block`, "warning", { flex: "right" })])
       // A grid of on gates then off ones; as many columns as fit, up to 2 (4 when wide): a name
       // never cut, the list wraps instead.
       const cells = [
@@ -367,7 +371,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     else {
       rule(g.alert, "refused", "warning", n)
       for (const r of refused.slice(0, SHOW)) {
-        const detail = r.isPath ? shortPath(r.detail, w.roots[0]) : r.detail
+        const detail = r.isPath ? shortPath(r.detail, w.roots[0], g.ellipsis) : r.detail
         // A path too wide for its row is cut from the left, so the file name always shows.
         const d = () => seg(detail, "muted", { flex: r.isPath ? "left" : "right" })
         if (wide) item([indent(), seg(r.rule, "text"), ...(detail ? [seg("  ", "text"), d()] : [])])
@@ -390,7 +394,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
       rule(glyph, name, "accent", r.step)
       const title = seg(r.name, "text", { flex: "right" })
       const note = r.waiting ? seg(`${g.on} waits for you`, "warning", { bold: true }) : r.note ? seg(r.note, "muted", { flex: "right" }) : null
-      if (wide) out.push(spread(W, [indent(), title], note ? [note] : [], { min: 2 }))
+      if (wide) out.push(spreadW([indent(), title], note ? [note] : [], { min: 2 }))
       else {
         item([indent(), title])
         if (note) item([indent(), note])
@@ -407,7 +411,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
   const listing = store ? snap[store] : null
   const fresh = Array.isArray(listing) ? learned(listing, sinceMs) : []
   if (used.length || fresh.length) {
-    const summary = fresh.length ? `${used.length} · ${fresh.length} new` : String(used.length)
+    const summary = fresh.length ? `${used.length} ${g.sep} ${fresh.length} new` : String(used.length)
     if (fold) folded(g.memory, "Memory", "accent", summary)
     else {
       rule(g.memory, "memory", "accent", summary)
@@ -415,14 +419,14 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
         if (u.kind === "searched") {
           const left = [indent(), seg(g.search, "accent"), seg(` "${u.label}"`, "text", { flex: "right" })]
           const n = String(u.count ?? 0)
-          if (wide) out.push(spread(W, left, [seg(n, "muted")], { min: 2 }))
+          if (wide) out.push(spreadW(left, [seg(n, "muted")], { min: 2 }))
           else item([...left, seg(`  ${n}`, "muted")])
         } else item([indent(), seg(g.memory, "accent"), seg(` ${u.label}`, "text", { flex: "right" })])
       }
       more(used.length)
       for (const f of fresh.slice(0, SHOW)) {
         const left = [indent(), seg(g.learned, "success"), seg(` ${f.label}`, "text", { flex: "right" })]
-        if (wide) out.push(spread(W, left, [seg(time(f.at), "muted")], { min: 2 }))
+        if (wide) out.push(spreadW(left, [seg(time(f.at), "muted")], { min: 2 }))
         else item(left)
       }
       more(fresh.length)

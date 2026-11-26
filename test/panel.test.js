@@ -193,12 +193,12 @@ test("ASCII set at W=32: the same panel, every glyph from the ASCII column", () 
     `-- ! refused ${"-".repeat(17)} 1`,
     pad("  Sealed Secrets"),
     pad(String.raw`  .ssh\id_rsa`),
-    `-- L loop ${"-".repeat(12)} plan · #0`,
+    `-- L loop ${"-".repeat(12)} plan . #0`,
     pad("  try-sidebar"),
     `-- F factory ${"-".repeat(11)} pr-open`,
     pad("  fix-auth"),
     pad("  * waits for you"),
-    `-- M memory ${"-".repeat(10)} 2 · 1 new`,
+    `-- M memory ${"-".repeat(10)} 2 . 1 new`,
     pad('  ? "host parity"  4'),
     pad("  M host-parity-rule"),
     pad("  + repo-facts"),
@@ -206,15 +206,37 @@ test("ASCII set at W=32: the same panel, every glyph from the ASCII column", () 
 })
 
 test("glyphs: one table, two sets; ASCII on options.ascii === true or GENESEED_SIDEBAR_ASCII=1", () => {
-  assert.equal(GLYPH_TABLE.map((r) => r[1]).join(" "), "● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─")
-  assert.equal(GLYPH_TABLE.map((r) => r[2]).join(" "), "* o + - ! # ~ R L F M ? + -")
+  assert.equal(GLYPH_TABLE.map((r) => r[1]).join(" "), "● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─ · …")
+  assert.equal(GLYPH_TABLE.map((r) => r[2]).join(" "), "* o + - ! # ~ R L F M ? + - . ~")
   assert.equal(glyphsFor({ ascii: true }, {}), GLYPHS.ascii)
   assert.equal(glyphsFor({}, { GENESEED_SIDEBAR_ASCII: "1" }), GLYPHS.ascii)
   assert.equal(glyphsFor(undefined, undefined), GLYPHS.unicode)
   assert.equal(glyphsFor({ ascii: "true" }, { GENESEED_SIDEBAR_ASCII: "0" }), GLYPHS.unicode)
   assert.equal(glyphsFor({}, {}), GLYPHS.unicode)
-  // Only "·" (from the run step) is left outside ASCII.
-  for (const t of full({ width: 32, glyphs: glyphsFor({ ascii: true }, {}) })) assert.match(t, /^[\x20-\x7e·]*$/, t)
+  // ASCII means printable ASCII only: the separator, the ellipsis of a cut and of an out-of-tree
+  // path, the guard-off bar and the warn line included.
+  const ascii = glyphsFor({ ascii: true }, {})
+  const posix = { ...W, roots: ["/home/g/proj"] }
+  const snap = {
+    ...CARRIER,
+    "/m/loops.json": JSON.stringify({ loops: [{ root: "/home/g/proj" }] }),
+    "/home/g/proj/LOOP.md": state("loop-state", { title: "x".repeat(40), node: "plan", iteration: 2, status: "running" }),
+  }
+  const cutRows = rows(posix, snap, [msg(refused(1, { path: "/etc/ssh/keys/id_rsa" }))], { width: 32, glyphs: ascii })
+  assert.equal(cutRows[7], pad("  ~/keys/id_rsa"))
+  assert.equal(cutRows[9], `  ${"x".repeat(29)}~`)
+  const all = [
+    ...full({ width: 32, glyphs: ascii }),
+    ...full({ width: 24, glyphs: ascii }),
+    ...full({ width: 44, glyphs: ascii }),
+    ...cutRows,
+    ...rows(W, CARRIER, [], { width: 32, glyphs: ascii, env: { GENESEED_GUARD: "off" } }),
+    ...rows(W, CARRIER, [], { width: 20, glyphs: ascii, env: { GENESEED_GUARD: "off" } }),
+    ...rows(W, CARRIER, [], { width: 32, glyphs: ascii, env: { GENESEED_GUARD: "warn" } }),
+  ]
+  assert.ok(all.includes(pad("GUARD OFF . nothing blocks")))
+  assert.ok(all.includes(pad("  ~ warn only . logs, no block")))
+  for (const t of all) assert.match(t, /^[\x20-\x7e]*$/, t)
 })
 
 // Wide characters: a CJK loop title, node and reason, an emoji factory title, a CJK memory query.

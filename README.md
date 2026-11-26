@@ -55,7 +55,8 @@ again only when they change.
 
 For terminals without these glyphs, list the plugin in `cli.json` as
 `{ "package": "C:/path/to/opencode-geneseed", "options": { "ascii": true } }`, or set
-`GENESEED_SIDEBAR_ASCII=1`: `● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─` become `* o + - ! # ~ R L F M ? + -`.
+`GENESEED_SIDEBAR_ASCII=1`: `● ○ ✓ – ▲ ■ ◐ ↺ ↻ ⚙ ◆ ⌕ + ─ · …` become `* o + - ! # ~ R L F M ? + - . ~`,
+so the panel draws printable ASCII only (a cut ends in `~`, a separator is `.`).
 
 ## Install
 

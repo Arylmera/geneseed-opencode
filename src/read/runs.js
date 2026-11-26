@@ -59,15 +59,16 @@ export function readState(text, tag) {
  * One sidebar line for a run; null when it is done or has no title and step.
  * @param {"loop"|"factory"} kind
  * @param {unknown} state
+ * @param {string} [sep] between the node and the iteration: the glyph set's `sep`
  * @returns {{ name: string, step: string, note: string }|null}
  */
-export function runLine(kind, state) {
+export function runLine(kind, state, sep = "·") {
   if (!isObj(state) || typeof state.title !== "string") return null
   const at = kind === "loop" ? state.node : state.stage
   if (typeof at !== "string") return null
   if (state.status === "done") return null
   let step = at
-  if (kind === "loop" && typeof state.iteration === "number") step = `${at} \u00b7 #${state.iteration}`
+  if (kind === "loop" && typeof state.iteration === "number") step = `${at} ${sep} #${state.iteration}`
   let note = ""
   if (state.status === "awaiting") note = "waits for you"
   else if (state.status === "stopped") note = typeof state.reason === "string" ? state.reason : ""

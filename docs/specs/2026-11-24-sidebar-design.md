@@ -62,7 +62,8 @@ texts add up to exactly W; src/tui.tsx draws them as they are. W is the drawn bo
 - Memory: `⌕ "query"  <count>`, `◆ slug` for a fact read, `+ slug` for one learned.
 - W < 28: one line a section, `<glyph> <Name>` left and the summary right. W > 40: items on one
   line each, label left and detail or summary right (a learned fact shows its time).
-- Lists show the newest 3, then "+N". ASCII glyphs (`* o + - ! # ~ R L F M ? + -`) when the plugin
+- Lists show the newest 3, then "+N". ASCII glyphs (`* o + - ! # ~ R L F M ? + - . ~`, the last two
+  standing in for `·` and `…`, so only printable ASCII is drawn) when the plugin
   option `ascii` is true or GENESEED_SIDEBAR_ASCII=1. The panel never changes the order of
   OpenCode's sections; it appends to `sidebar.content`.
 
