@@ -31,6 +31,16 @@ test("GENESEED_GUARD off and warn", () => {
   assert.equal(readGates("", { GENESEED_GUARD: "off" }).guard, "off")
   assert.equal(readGates("", { GENESEED_GUARD: "warn" }).guard, "warn")
 })
+// The guard's own parse (geneseed-guard.js): (GENESEED_GUARD || "on").toLowerCase(), no trim.
+for (const [value, guard] of [
+  [undefined, "on"], ["", "on"], ["on", "on"], ["off", "off"], ["OFF", "off"], ["0", "off"],
+  ["false", "off"], ["no", "off"], ["No", "off"], ["warn", "warn"], ["WARN", "warn"],
+  [" off", "on"], ["off ", "on"], ["warn ", "on"], ["1", "on"], ["yes", "on"],
+]) {
+  test(`GENESEED_GUARD ${JSON.stringify(value)} is ${guard}`, () => {
+    assert.equal(readGates("", { GENESEED_GUARD: value }).guard, guard)
+  })
+}
 
 test("contract: GATE_SWITCHES markers match the reader", (t) => {
   const src = process.env.GENESEED_SRC

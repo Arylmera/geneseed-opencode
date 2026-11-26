@@ -15,6 +15,8 @@ const SWITCHABLE = [
   ["external", "External gate"],
 ]
 
+const GUARD_OFF = ["off", "0", "false", "no"]
+
 const isOff = (text, marker) => new RegExp(`^${marker}:[ \\t]*off[ \\t]*\\r?$`, "m").test(text)
 
 /**
@@ -28,12 +30,13 @@ export function readGates(text, env) {
   const on = []
   const off = []
   for (const [name, marker] of SWITCHABLE) (isOff(text, marker) ? off : on).push(name)
-  const g = String(env.GENESEED_GUARD ?? "").trim().toLowerCase()
+  // The guard's own parse (geneseed-guard.js MODE / OFF / WARN_ONLY): no trim, so " off" is armed.
+  const mode = String(env.GENESEED_GUARD || "on").toLowerCase()
   return {
     on,
     off,
     na: ["done"],
     strict: isOff(text, "Own-branch pass"),
-    guard: g === "off" || g === "warn" ? g : "on",
+    guard: GUARD_OFF.includes(mode) ? "off" : mode === "warn" ? "warn" : "on",
   }
 }
