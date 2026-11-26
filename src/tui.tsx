@@ -83,8 +83,9 @@ export default Plugin.define({
   setup(context) {
     // When the panel first rendered each session: "learned" counts facts changed since then.
     const since = new Map<string, number>()
-    // The carrier text each session first rendered: the guard reads its carrier once, so do we.
-    const carriers = new Map<string, string>()
+    // Geneseed's guard reads its carrier once per process, at load: one pin per setup, from the first
+    // snapshot read after it. null records "absent". undefined until that first read.
+    let pinned: string | null | undefined
     // Theme roles of @opencode/theme 2.3.2 ResolvedTheme. Read on every draw, so a mode switch
     // applies; optional chaining because the Rust client runs plugins through a compatibility layer.
     const color = (role: Line["role"]) => {
@@ -163,9 +164,8 @@ export default Plugin.define({
             if (!w || !x) return null
             try {
               const id = input.sessionID
-              const now = carrierText(w, x)
-              if (!carriers.has(id) && now !== null) carriers.set(id, now)
-              return panelLines(w, x, messages(), { env: process.env, sinceMs: since.get(id) ?? Date.now(), carrier: carriers.get(id) })
+              if (pinned === undefined) pinned = carrierText(w, x)
+              return panelLines(w, x, messages(), { env: process.env, sinceMs: since.get(id) ?? Date.now(), carrier: pinned })
             } catch {
               return null
             }

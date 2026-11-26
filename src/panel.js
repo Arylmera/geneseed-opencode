@@ -136,11 +136,20 @@ export function carrierText(w, snap) {
   return v ?? null
 }
 
+/** Same gate results (on, off, n/a, strict, guard)? null (no carrier) equals only null. */
+export function sameGates(a, b) {
+  if (a === null || b === null) return a === b
+  const key = (g) => JSON.stringify([g.on, g.off, g.na, g.strict, g.guard])
+  return key(a) === key(b)
+}
+
 /**
  * The panel, in spec order; empty sections absent; null when there is no carrier.
- * `carrier` is the carrier text the session first rendered: the guard reads its carrier once, so the
- * gates stay that text's, and a carrier changed or gone since adds "restart OpenCode to apply".
- * Left out, the current carrier is used.
+ * `carrier` is the carrier pinned once per plugin setup (Geneseed's guard reads its carrier once
+ * per process): its text, or null when it was absent then. The gates are what the guard holds: the
+ * pinned text's, all armed when it was absent. "restart OpenCode to apply" follows when the gates
+ * of the carrier on disk now differ from those of the pin. Left out (undefined), the current
+ * carrier is used and there is no hint.
  * @param {Watch} w
  * @param {Record<string, unknown>} snap
  * @param {unknown} messages
@@ -149,8 +158,12 @@ export function carrierText(w, snap) {
  */
 export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carrier }) {
   const now = carrierText(w, snap)
+  const pinnedOne = carrier !== undefined
   const pinned = typeof carrier === "string" ? carrier : null
-  const gates = readGates(pinned ?? now, env)
+  if (pinnedOne && pinned === null && now === null) return null
+  // The guard reads an absent carrier as "" (every gate armed).
+  const gates = readGates(pinnedOne ? (pinned ?? "") : now, env)
+  const restart = pinnedOne && !sameGates(readGates(pinned, env), readGates(now, env))
   if (!gates) return null
   /** @type {Line[]} */
   const out = [
@@ -166,7 +179,7 @@ export function panelLines(w, snap, messages, { env, sinceMs, time = hhmm, carri
     list("  n/a  ", gates.na.map((n) => `${n} (OpenCode 2)`))
     if (gates.strict) out.push({ text: "  strict consent", role: "muted" })
   }
-  if (pinned !== null && now !== pinned) out.push({ text: "  restart OpenCode to apply", role: "muted" })
+  if (restart) out.push({ text: "  restart OpenCode to apply", role: "muted" })
 
   const refused = readRefusals(messages)
   if (refused.length) {

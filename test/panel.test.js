@@ -218,7 +218,7 @@ test("watchList polls the stores only up to the first that exists, plus the name
   assert.deepEqual(stores({ "/a/memory": [] }, named), ["/a/memory", "/seen"])
 })
 
-test("the carrier is read once a session: a later change keeps the old gates and says restart", async () => {
+test("the pinned carrier: a later gate change keeps the old gates and says restart", async () => {
   const { carrierText } = await import("../src/panel.js")
   const first = "Deletion gate: off\n"
   assert.equal(carrierText(W, { "/h/AGENT.md": null, "/cfg/AGENT.md": first }), first)
@@ -233,4 +233,28 @@ test("the carrier is read once a session: a later change keeps the old gates and
   assert.deepEqual(shown(W, {}, [], { carrier: first }), [...OLD, RESTART])
   // No pinned carrier (the first render): the current one, no hint.
   assert.deepEqual(shown(W, { "/cfg/AGENT.md": first }, []), OLD)
+})
+
+// Ruling 22: one pin per plugin setup, "absent" (null) included; the hint compares gate results.
+const RESTART_HINT = "muted|  restart OpenCode to apply"
+const ARMED = [...HEAD, ...DEFAULT_GATES]
+test("pinned absent, carrier present later: the gates the guard holds (all armed), then the hint", () => {
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "Deletion gate: off\n" }, [], { carrier: null }), [...ARMED, RESTART_HINT])
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "carrier" }, [], { carrier: null }), [...ARMED, RESTART_HINT])
+  // Absent at the pin and still absent: no panel.
+  assert.equal(shown(W, {}, [], { carrier: null }), null)
+})
+test("a prose-only or line-ending-only rewrite of the carrier shows no hint", () => {
+  const first = "# Harness\nDeletion gate: off\nSome rules.\n"
+  const OFF_DELETION = [...HEAD, "muted|  on   secrets, ownership,", "muted|       external", "muted|  off  deletion", "muted|  n/a  done (OpenCode 2)"]
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": "# Harness, reworded\nDeletion gate: off\nOther rules.\n" }, [], { carrier: first }), OFF_DELETION)
+  assert.deepEqual(shown(W, { "/cfg/AGENT.md": first.replace(/\n/g, "\r\n") }, [], { carrier: first }), OFF_DELETION)
+})
+test("a gate flipped in the carrier shows the hint", () => {
+  const first = "Deletion gate: off\n"
+  const hint = (now) => shown(W, { "/cfg/AGENT.md": now }, [], { carrier: first }).includes(RESTART_HINT)
+  assert.equal(hint("Deletion gate: off\nSecrets gate: off\n"), true)
+  assert.equal(hint(""), true)
+  assert.equal(hint("Deletion gate: off\nOwn-branch pass: off\n"), true)
+  assert.equal(hint("Deletion gate: off\n"), false)
 })
