@@ -106,7 +106,7 @@ G5 Factories — the same with `factories.json` `factories[]`, FACTORY.md and `f
 - MSGS is the TUI's loaded window; older messages may be absent. Counts are "in view".
 
 ## Packaging
-Repo `Arylmera/opencode-geneseed`, public, licence the same as Geneseed's. Plain source, no build
+Repo `Arylmera/geneseed-opencode` (npm name `opencode-geneseed`), public, licence the same as Geneseed's. Plain source, no build
 step. Local install: a package entry in `~/.config/opencode/cli.json` `plugins`. npm publish is a
 later decision. OpenCode 2 from 2.3.2: its published types hold the slots and
 `data.session.message.list`, and the installed 2.3.2 binary holds `sidebar.content`. Not run yet.

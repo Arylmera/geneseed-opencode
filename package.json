@@ -4,6 +4,14 @@
   "description": "OpenCode 2 TUI plugin: Geneseed harness information in the sidebar.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arylmera/geneseed-opencode.git"
+  },
+  "homepage": "https://github.com/Arylmera/geneseed-opencode#readme",
+  "bugs": {
+    "url": "https://github.com/Arylmera/geneseed-opencode/issues"
+  },
   "exports": {
     "./tui": "./src/tui.tsx"
   },

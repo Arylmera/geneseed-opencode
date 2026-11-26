@@ -14,8 +14,8 @@ poller. `src/tui.tsx` joins them in `sidebar.content`. Nothing writes, spawns or
 
 ## Global Constraints
 
-- Repo folder `C:/Users/guill/Documents/git/opencode-geneseed`. Local git only: no GitHub repo, no
-  push and no npm publish without a separate yes from the owner.
+- Repo `Arylmera/geneseed-opencode` (public on GitHub since 2026-11-26). No npm publish without a
+  separate yes from the owner.
 - OpenCode 2 from 2.3.2. Plugin id `geneseed.sidebar`. Slot `append: "sidebar.content"`.
 - Only the spec's five sections. Nothing OpenCode shows by default.
 - `src/read/*.js` imports no OpenCode module. A reader returns its empty value on any bad input.
