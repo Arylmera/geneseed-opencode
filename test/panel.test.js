@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import fs from "node:fs"
 import { cols } from "../src/width.js"
-import { cut, cutLeft, readsTierOf, runPaths, storeOf, watchList, panelLines, glyphsFor, GLYPHS, GLYPH_TABLE } from "../src/panel.js"
+import { cut, cutLeft, spread, readsTierOf, runPaths, storeOf, watchList, panelLines, glyphsFor, GLYPHS, GLYPH_TABLE } from "../src/panel.js"
 
 const refusal = JSON.parse(fs.readFileSync(new URL("./fixtures/refusal.json", import.meta.url), "utf8"))
 const DASH = "—"
@@ -286,6 +286,29 @@ test("cols: display columns, not code points; the panel's glyphs are 1", () => {
   assert.equal(cols("️"), 0)
   for (const set of [GLYPHS.unicode, GLYPHS.ascii]) for (const [k, v] of Object.entries(set)) assert.equal(cols(v), 1, k)
   assert.equal(cols("…·"), 2)
+})
+
+test("spread: the input segments are left as they are; the row is copies without flex", () => {
+  const left = [{ text: "  ", role: "text" }, { text: "x".repeat(40), role: "text", flex: "right" }]
+  const right = [{ text: "r".repeat(40), role: "muted", flex: "left" }]
+  const before = JSON.stringify([left, right])
+  const row = spread(32, left, right, { min: 2 })
+  assert.equal(JSON.stringify([left, right]), before)
+  assert.ok(row.every((s) => !("flex" in s) && !left.includes(s) && !right.includes(s)))
+  assert.equal(row.map((s) => s.text).join(""), `  ${"x".repeat(13)}…  …${"r".repeat(13)}`)
+})
+
+test("spread: the overflow is shared by every flex segment, so a wide run row keeps title and reason", () => {
+  const snap = {
+    ...CARRIER,
+    "/m/loops.json": JSON.stringify({ loops: [{ root: "/r" }] }),
+    "/r/LOOP.md": state("loop-state", { title: "x".repeat(60), node: "plan", iteration: 1, status: "stopped", reason: "r".repeat(60) }),
+  }
+  // 44 = indent 2 + title 20 + gap 2 + reason 20.
+  assert.equal(rows(W, snap, [], { width: 44 })[6], `  ${"x".repeat(19)}…  ${"r".repeat(19)}…`)
+  // A short title gives up nothing until the reason is as narrow as it is.
+  snap["/r/LOOP.md"] = state("loop-state", { title: "short", node: "plan", iteration: 1, status: "stopped", reason: "r".repeat(60) })
+  assert.equal(rows(W, snap, [], { width: 44 })[6], `  short  ${"r".repeat(34)}…`)
 })
 
 test("cut and cutLeft keep the width exactly, the ellipsis at the cut, and never split a cluster", () => {

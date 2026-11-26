@@ -231,22 +231,31 @@ function fit(row, W) {
 
 /**
  * One row exactly W wide: `left`, then `fill` repeated, then `right`. When they do not fit, the
- * segment marked `flex` gives up columns first ("right": cut from the right; "left": cut from the
- * left, so a path keeps its file name) while the fill keeps `min` columns; what still overflows is
- * cut from the row's right end.
+ * segments marked `flex` give up columns first, shared out (the widest gives one up, in turn, each
+ * keeping 1), while the fill keeps `min` columns ("right": cut from the right; "left": cut from
+ * the left, so a path keeps its file name); what still overflows is cut from the row's right end.
+ * The input segments are left as they are: the row is made of copies, without `flex`.
  * @returns {Row}
  */
-function spread(W, left, right = [], { fill = " ", role = "text", min = 0 } = {}) {
+export function spread(W, left, right = [], { fill = " ", role = "text", min = 0 } = {}) {
   const parts = [...left, ...right]
-  const flex = parts.find((s) => s.flex)
-  const over = widthOf(parts) + min - W
-  if (over > 0 && flex) {
-    const keep = Math.max(1, len(flex.text) - over)
-    flex.text = flex.flex === "left" ? cutLeft(flex.text, keep) : cut(flex.text, keep)
+  const keep = parts.map((s) => len(s.text))
+  let over = keep.reduce((n, k) => n + k, 0) + min - W
+  const flexes = parts.map((s, i) => (s.flex ? i : -1)).filter((i) => i >= 0)
+  while (over > 0) {
+    let at = -1
+    for (const i of flexes) if (keep[i] > 1 && (at < 0 || keep[i] > keep[at])) at = i
+    if (at < 0) break
+    keep[at] -= 1
+    over -= 1
   }
-  for (const s of parts) delete s.flex
-  const gap = W - widthOf(parts)
-  return fit([...left, ...(gap > 0 ? [seg(fill.repeat(gap), role)] : []), ...right], W)
+  const out = parts.map(({ flex, ...s }, i) =>
+    keep[i] === len(s.text) ? s : { ...s, text: flex === "left" ? cutLeft(s.text, keep[i]) : cut(s.text, keep[i]) },
+  )
+  const l = out.slice(0, left.length)
+  const r = out.slice(left.length)
+  const gap = W - widthOf(out)
+  return fit([...l, ...(gap > 0 ? [seg(fill.repeat(gap), role)] : []), ...r], W)
 }
 
 /**
