@@ -15,10 +15,14 @@ function ruleOf(message) {
   return "refused"
 }
 
+// A command as one line of text: a run of whitespace (newlines, tabs, CR) is one space, every other
+// control character (ESC included) is dropped, the ends trimmed. The model wrote it; the row is ours.
+const oneLine = (t) => t.replace(/(?!\s)\p{Cc}/gu, "").replace(/\s+/g, " ").trim()
+
 function detailOf(input) {
   if (!isObj(input)) return { detail: "", isPath: false }
   for (const k of DETAIL_KEYS) {
-    if (typeof input[k] === "string" && input[k] !== "") return { detail: input[k], isPath: k !== "command" }
+    if (typeof input[k] === "string" && input[k] !== "") return k === "command" ? { detail: oneLine(input[k]), isPath: false } : { detail: input[k], isPath: true }
   }
   return { detail: "", isPath: false }
 }

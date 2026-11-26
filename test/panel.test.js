@@ -627,6 +627,29 @@ test("a gate flipped in the carrier shows the hint", () => {
   assert.equal(hint("Deletion gate: off\n"), false)
 })
 
+const HEREDOC = "cat > notes.txt <<'EOF'\nline one\n\tline two\nEOF\n"
+const TABS = "git\tpush\r\n  --force\t\torigin main\r\n"
+const ESC = "echo \x1b[31mred\x1b[0m done\x07"
+test("refused commands with newlines, tabs, CR and ESC: every row W wide, no control character", () => {
+  const messages = [HEREDOC, TABS, ESC].map((command, i) => msg(refused(i, { command })))
+  for (const width of [24, 27, 28, 32, 40, 41, 44]) {
+    const out = rows(W, CARRIER, messages, { width })
+    for (const t of out) {
+      assert.equal(len(t), width, `W=${width}: ${JSON.stringify(t)}`)
+      assert.ok(!/\p{Cc}/u.test(t), JSON.stringify(t))
+    }
+  }
+  const out = rows(W, CARRIER, messages, { width: 32 })
+  assert.deepEqual(out.slice(6), [
+    pad("  Sealed Secrets"),
+    pad("  echo [31mred[0m done"),
+    pad("  Sealed Secrets"),
+    pad("  git push --force origin main"),
+    pad("  Sealed Secrets"),
+    "  cat > notes.txt <<'EOF' line …",
+  ])
+})
+
 test("refused path detail: relative to the session dir, else the last two segments; a command stays", () => {
   const detail = (w, input, width = 32) => {
     const all = rows(w, CARRIER, [msg(refused(1, input))], { width })

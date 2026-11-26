@@ -51,6 +51,18 @@ test("detail: command, and key precedence filePath > path > command", () => {
   assert.equal(readRefusals([msg(part(MARK, all))])[0].detail, "f")
   assert.equal(readRefusals([msg(part(MARK, { filePath: "", path: "p", command: "c" }))])[0].detail, "p")
 })
+const HEREDOC = "cat > notes.txt <<'EOF'\nline one\n\tline two\nEOF\n"
+const TABS = "git\tpush\r\n  --force\t\torigin main\r\n"
+const ESC = "echo \x1b[31mred\x1b[0m done\x07"
+test("detail: a command is one line: whitespace runs are one space, control characters dropped", () => {
+  const detail = (command) => readRefusals([msg(part(MARK, { command }))])[0].detail
+  assert.equal(detail(HEREDOC), "cat > notes.txt <<'EOF' line one line two EOF")
+  assert.equal(detail(TABS), "git push --force origin main")
+  assert.equal(detail(ESC), "echo [31mred[0m done")
+  assert.equal(detail(" \n\t "), "")
+  // A path is left as it is.
+  assert.equal(readRefusals([msg(part(MARK, { path: "a\tb" }))])[0].detail, "a\tb")
+})
 test("detail never reads content: a secret in content leaks nowhere", () => {
   const secret = "-----BEGIN PRIVATE KEY-----"
   const rows = readRefusals([msg(part(MARK, { content: secret }))])
