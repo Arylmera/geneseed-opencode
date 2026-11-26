@@ -67,6 +67,26 @@ function namedDir(text) {
 }
 
 /**
+ * The store the last completed memory_search result names ("Facts in <dir>"), or null. It is the
+ * store observed, so it wins over the resolved candidates.
+ * @param {unknown} messages OpenCode 2 SessionMessageInfo[]
+ * @returns {string|null}
+ */
+export function storeNamed(messages) {
+  let dir = null
+  if (!Array.isArray(messages)) return null
+  for (const message of messages) {
+    if (!isObj(message) || !Array.isArray(message.content)) continue
+    for (const part of message.content) {
+      if (!isObj(part) || part.type !== "tool" || part.name !== "memory_search") continue
+      if (!isObj(part.state) || part.state.status !== "completed") continue
+      dir = namedDir(textOf(part.state)) ?? dir
+    }
+  }
+  return dir
+}
+
+/**
  * Memory the session used, in message order: searches and reads of fact files.
  * The store is resolved once over the whole message list: the last dir a search result names wins
  * over the `store` argument, for every read.

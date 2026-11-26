@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { storeCandidates, readMemoryUse, learned } from "../src/read/memory.js"
+import { storeCandidates, readMemoryUse, learned, storeNamed } from "../src/read/memory.js"
 
 const DASH = "\u2014"
 const done = (name, input, text, completed) => ({
@@ -96,4 +96,14 @@ test("a POSIX store is case-sensitive", () => {
 })
 test("the path input key reads a fact under the store", () => {
   assert.deepEqual(readMemoryUse([msg(done("read", { path: "/s/a.md" }, "x", 3))], "/s"), [{ kind: "read", label: "a", at: 3 }])
+})
+
+test("storeNamed gives the dir the last search result names, else null", () => {
+  const a = done("memory_search", { query: "a" }, `Facts in D:/one (read x):\n${fact(1)}`)
+  const b = done("memory_search", { query: "b" }, `No fact in /two matches "b".`)
+  const c = done("memory_search", { query: "c" }, "something else")
+  assert.equal(storeNamed([msg(a), msg(b, c)]), "/two")
+  assert.equal(storeNamed([msg(a)]), "D:/one")
+  assert.equal(storeNamed([msg(c)]), null)
+  assert.equal(storeNamed("x"), null)
 })

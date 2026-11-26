@@ -114,6 +114,20 @@ test("files may be a getter; a path that leaves the set leaves the snapshot", as
   assert.deepEqual(seen, [{ a: "A" }, { b: "B" }])
 })
 
+test("paths the getter derives from a changed file are read in the same tick", async () => {
+  const t = fakeTimers()
+  const fs = fakeFs({ reg: { mtime: 1, text: "" }, "x/LOOP.md": { mtime: 1, text: "L" } })
+  const seen = []
+  const files = (snap) => ["reg", ...(snap.reg ? [snap.reg] : [])]
+  createPoll({ files, read: fs.read, stat: fs.stat, onChange: (s) => seen.push(s), every: 3000, timers: t })
+  await flush()
+  assert.deepEqual(seen, [{ reg: "" }])
+  fs.files.set("reg", { mtime: 2, text: "x/LOOP.md" })
+  t.fn()
+  await flush()
+  assert.deepEqual(seen, [{ reg: "" }, { reg: "x/LOOP.md", "x/LOOP.md": "L" }])
+})
+
 test("a throwing onChange does not stop the poll", async () => {
   const t = fakeTimers()
   const fs = fakeFs({ a: { mtime: 1, text: "A1" } })

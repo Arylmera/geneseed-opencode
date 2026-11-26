@@ -29,15 +29,17 @@ OpenCode plugins are single files with no dependencies. Geneseed never depends o
       off  deletion, ownership
       n/a  done (OpenCode 2)
      Refused  2
-      Sealed Secrets      .ssh/id_rsa
-      Deletion Is Delib…  git push -f
+      Sealed Secrets  .ssh/id_rsa
+      Deletion Is Deliberate  git…
      Memory
-      searched  "host parity"  4
       read      host-parity-rule
+      searched  "host parity"  4
       learned   repo-facts  14:02
-     Loop  refactor-auth   step check · #3
-     Factory  issue-to-pr   pr-open · waits for you
-Names over the sidebar width are cut with an ellipsis. Lists show the newest 3, then "+N". The
+     Loop  fix-auth  check · #3
+     Factory  issue-to-pr  pr-ope…
+A row that lists gate names is never cut: it wraps at ", " to 30 columns, continuation lines
+aligned under the first name. Other rows are cut at 30 characters with an ellipsis (the mock above
+is what src/panel.js renders). Lists show the newest 3, then "+N". The
 panel never changes the order of OpenCode's sections; it appends to `sidebar.content`.
 
 ## Sections and sources

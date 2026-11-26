@@ -18,8 +18,8 @@ Geneseed
   searched  "host parity"  4
   read      host-parity-rule
   learned   repo-facts  14:02
- Loop  refactor-auth  check · #3
- Factory  issue-to-pr  pr-open · waits for you
+ Loop  fix-auth  check · #3
+ Factory  issue-to-pr  pr-ope…
 ```
 
 - **Gates**: the switchable gates in place, read from the Geneseed carrier (`AGENT.md`), in the
@@ -30,8 +30,8 @@ Geneseed
 - **Loop** and **Factory**: runs registered for this repository that are not done.
 
 The panel appears only when a Geneseed carrier is found. A section with nothing to show is left
-out. Lists show the newest 3, then `+N`. Lines are cut at 30 characters. Files are checked every
-3 seconds and read again only when they change.
+out. Lists show the newest 3, then `+N`. A row of gate names wraps at ", "; other lines are cut at
+30 characters. Files are checked every 3 seconds and read again only when they change.
 
 ## Install
 
